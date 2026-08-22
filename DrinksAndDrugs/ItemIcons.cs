@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ModNamespace
+namespace DrinksAndDrugs
 {
     internal static class ItemIcons
     {

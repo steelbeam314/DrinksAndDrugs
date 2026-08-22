@@ -1,23 +1,22 @@
-# Template BepInEx Plugin
+# Drinks and Drugs
 
-A small BepInEx plugin template for Unity modding Casualties Unknown (or any other unity game).
+A Casualties Unknown mod that adds custom liquids, drink/syringe items, status effects, and a Scavenger / Drug Tester class choice.
 
-## Overview
+Requires [CUCoreLib](https://cucorelib.web.app/) and BepInEx.
 
-- Project: `ScavTemplate`
-- Target framework: `net48`
-- Purpose: Simplification
-- Includes Harmony, Newtonsoft.Json, and Unity assembly references
+## Features
+
+- **Liquids:** Distilled Tonic, Death Juice, Stim Fluid, Brainfuck, and Liquid Nitrogen
+- **Items:** prefilled bottles (500 mL) and syringes (100 mL)
+- **Statuses and moodles:** Death Juice cooling/fever, Brainfuck brain drain
+- **Classes:** Scavenger (default) or Drug Tester, chosen on the pre-run screen (`setclass` in multiplayer)
+
+Drug Testers cannot start syringe injections and have doubled overdose thresholds.
 
 ## Build
 
-1. Open the project in Visual Studio or JetBrains Rider.
-2. Build `ScavTemplate/Template.csproj`.
+1. Install the game, BepInEx, and CUCoreLib.
+2. Confirm `vars.targets` points at your game folder.
+3. Build `DrinksAndDrugs/DrinksAndDrugs.csproj`.
 
-## Usage
-
-1. Place your game assemblies path in `vars.targets` if needed.
-2. Update `Plugin.cs` with your plugin GUID, name, version.
-3. Update namespace in `Plugin.cs` and `Patches.cs`
-3. Add your mod logic and Harmony patches.
-4. Run the game with BepInEx installed.
+The build copies `DrinksAndDrugs.dll` to `BepInEx/plugins/DrinksAndDrugs`.

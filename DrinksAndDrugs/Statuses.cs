@@ -1,7 +1,7 @@
 using CUCoreLib.Data;
 using UnityEngine;
 
-namespace ModNamespace
+namespace DrinksAndDrugs
 {
     [StatusOptions(Key = "modnamespace.deathjuice", SaveEnabled = true)]
     public sealed class DeathJuiceStatus : BodyStatus

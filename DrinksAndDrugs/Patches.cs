@@ -4,7 +4,7 @@ using HarmonyLib;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace ModNamespace
+namespace DrinksAndDrugs
 {
     internal class Patches
     {
@@ -15,7 +15,6 @@ namespace ModNamespace
             [HarmonyPostfix]
             private static void StartPatch()
             {
-                ConsoleScript.instance.LogToConsole("Hello World!");
                 ClassSelection.LogSelectedClassToGameConsole(Plugin.SelectedClassId);
             }
 

@@ -4,7 +4,7 @@ using CUCoreLib.Helpers;
 using CUCoreLib.Registries;
 using UnityEngine;
 
-namespace ModNamespace
+namespace DrinksAndDrugs
 {
     public partial class Plugin
     {

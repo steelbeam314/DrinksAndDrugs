@@ -6,7 +6,7 @@ using CUCoreLib.Registries;
 using TMPro;
 using UnityEngine;
 
-namespace ModNamespace
+namespace DrinksAndDrugs
 {
     internal static class ClassSelection
     {

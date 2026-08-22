@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace ModNamespace
+namespace DrinksAndDrugs
 {
     internal static class PlayerClasses
     {

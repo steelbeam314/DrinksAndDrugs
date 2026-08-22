@@ -3,15 +3,15 @@ using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
 
-namespace ModNamespace
+namespace DrinksAndDrugs
 {
     [BepInPlugin(ModGUID, ModName, ModVersion)]
     [BepInDependency("net.cucorelib", BepInDependency.DependencyFlags.HardDependency)]
     public partial class Plugin : BaseUnityPlugin
     {
-    public const string ModGUID = "mathias.drinksanddrugs";
-    public const string ModName = "DrinksAndDrugs";
-    public const string ModVersion = "0.1.0";
+        public const string ModGUID = "mathias.drinksanddrugs";
+        public const string ModName = "DrinksAndDrugs";
+        public const string ModVersion = "0.1.0";
 
         public const string DefaultClassId = "scavenger";
         public const string DrugTesterClassId = "drugtester";
