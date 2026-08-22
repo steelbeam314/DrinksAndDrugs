@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
-    <AssemblyName>$(ProjectName)</AssemblyName>
-    <Product>Template description</Product>
+    <AssemblyName>DrinksAndDrugs</AssemblyName>
+    <Product>DrinksAndDrugs</Product>
     <Version>1.0.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
@@ -40,6 +40,11 @@
     <Reference Include="Unity.TextMeshPro">
       <HintPath>$(GameAssembliesDir)/Unity.TextMeshPro.dll</HintPath>
     </Reference>
+
+    <Reference Include="CUCoreLib">
+      <HintPath>$(BepInExDir)/plugins/CUCoreLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
@@ -52,8 +57,8 @@
 
   <PropertyGroup>
   <RequiredFilesToCopy>
-  $(ProjectName).dll;
-  $(ProjectName).pdb
+  DrinksAndDrugs.dll;
+  DrinksAndDrugs.pdb
   </RequiredFilesToCopy>
 
 
