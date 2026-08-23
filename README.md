@@ -4,6 +4,12 @@ A Casualties Unknown mod that adds custom liquids, drink/syringe items, status e
 
 Requires [CUCoreLib](https://cucorelib.web.app/) and BepInEx.
 
+## Install
+
+1. Install BepInEx and CUCoreLib.
+2. Download [`plugin/DrinksAndDrugs.dll`](plugin/DrinksAndDrugs.dll).
+3. Copy it to `Casualties Unknown Demo/BepInEx/plugins/DrinksAndDrugs/`.
+
 ## Features
 
 - **Liquids:** Distilled Tonic, Death Juice, Stim Fluid, Brainfuck, and Liquid Nitrogen
