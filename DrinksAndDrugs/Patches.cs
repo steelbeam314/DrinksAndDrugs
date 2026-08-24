@@ -27,6 +27,52 @@ namespace DrinksAndDrugs
             }
         }
 
+        // Crafting pickles from a full pickle jar leaves the brine jar behind.
+        [HarmonyPatch(typeof(Recipe), nameof(Recipe.TryMake))]
+        internal static class PickleJarCraftPatch
+        {
+            [HarmonyPostfix]
+            private static void Postfix(Recipe __instance)
+            {
+                if (__instance?.result == null || __instance.result.id != "pickles")
+                    return;
+
+                if (__instance.items == null)
+                    return;
+
+                bool usedPickleJar = false;
+                for (int i = 0; i < __instance.items.Count; i++)
+                {
+                    RecipeItem ingredient = __instance.items[i];
+                    if (ingredient != null && ingredient.specificId == "picklejar")
+                    {
+                        usedPickleJar = true;
+                        break;
+                    }
+                }
+
+                if (!usedPickleJar)
+                    return;
+
+                Body body = PlayerCamera.main != null ? PlayerCamera.main.body : null;
+                if (body == null)
+                    return;
+
+                GameObject spawned = CustomInstantiate.InstantiateReturn(
+                    "picklejuicejar",
+                    body.transform.position,
+                    Quaternion.identity,
+                    1f);
+
+                if (spawned == null)
+                    return;
+
+                Item leftover = spawned.GetComponent<Item>();
+                if (leftover != null)
+                    body.AutoPickUpItem(leftover);
+            }
+        }
+
         [HarmonyPatch(typeof(Body), nameof(Body.Update))]
         internal static class DeathJuiceFeverPatch
         {

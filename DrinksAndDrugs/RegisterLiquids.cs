@@ -15,7 +15,7 @@ namespace DrinksAndDrugs
             LiquidRegistry.Register("distilledtonic", new CustomLiquidInfo
             {
                 name = "Distilled Tonic",
-                description = "Extremely potent, oddly sweet, but smells strangely like the labs.",
+                description = "Precursor to most chemicals made by the company, smells strangely fruity.",
                 color = new Color(0.77f, 0.41f, 0.11f),
 
                 valuePerLiter = 20f,
@@ -39,7 +39,7 @@ namespace DrinksAndDrugs
             LiquidRegistry.Register("deathjuice", new CustomLiquidInfo
             {
                 name = "Death Juice",
-                description = "It smells so good... but you know what? You're not sure you want to drink it.",
+                description = "You can hear the whirring of the nanites held within the viscous fluid.",
                 color = new Color(0.15f, 0.1f, 0.1f),
 
                 valuePerLiter = 20f,
@@ -56,8 +56,8 @@ namespace DrinksAndDrugs
 
             LiquidRegistry.Register("stimfluid", new CustomLiquidInfo
             {
-                name = "Stim Fluid",
-                description = "Used by the military in the heroic crusade against their enemies...  Which happens to include the experiments on occasion.",
+                name = "War Stimulant",
+                description = "Used by the military to quickly bring soldiers back to action.  The label says that they are non-addictive.",
                 color = new Color(0.2f, 0.85f, 0.55f),
 
                 valuePerLiter = 35f,
@@ -98,7 +98,29 @@ namespace DrinksAndDrugs
                 }
             });
 
-            Logger.LogInfo("Registered liquids: Distilled Tonic, Death Juice, Stim Fluid, Brainfuck, Liquid Nitrogen");
+            LiquidRegistry.Register("picklejuice", new CustomLiquidInfo
+            {
+                name = "Pickle Juice",
+                description = "Salty, sour brine left behind after the pickles are gone.",
+                color = new Color(0.72f, 0.78f, 0.42f),
+
+                valuePerLiter = 8f,
+                unobtainable = true,
+                injectable = false,
+                onDrink = (ml, body) =>
+                {
+                    float dose = ml * 0.01f;
+                    body.Drink(dose * 6f);
+                    body.happiness += dose * 0.5f;
+                    body.temperature -= dose * 0.4f;
+                },
+                qualities = new List<CraftingQuality>
+                {
+                    CUCoreUtils.CreateCraftingQuality("water", 0.4f)
+                }
+            });
+
+            Logger.LogInfo("Registered liquids: Distilled Tonic, Death Juice, Stim Fluid, Brainfuck, Liquid Nitrogen, Pickle Juice");
         }
 
         private void RegisterLiquidContainers()
@@ -173,6 +195,128 @@ namespace DrinksAndDrugs
                 dropPool: DropPool.MedicalCrate | DropPool.Corpse);
 
             Logger.LogInfo("Registered liquid containers: bottles and syringes");
+        }
+
+        private void RegisterPickleItems()
+        {
+            Color brine = new Color(0.72f, 0.78f, 0.42f);
+
+            ItemRegistry.Register(
+                "picklejar",
+                new CustomItemInfo
+                {
+                    fullName = "Pickle Jar",
+                    description = "A sealed glass jar packed with pickles floating in brine. Craft it to take the pickles out.",
+                    category = "food",
+                    slotRotation = -20f,
+                    tags = "cangetwet",
+                    usable = true,
+                    usableOnLimb = false,
+                    destroyAtZeroCondition = false,
+                    combineable = true,
+                    weight = 1.6f,
+                    scaleWeightWithCondition = true,
+                    capacity = 400f,
+                    autoFill = false,
+                    LiquidMask = ItemIcons.JarMask(),
+                    defaultContents = new List<LiquidStack>
+                    {
+                        new LiquidStack("picklejuice", 400f)
+                    },
+                    useAction = (body, item) =>
+                    {
+                        WaterContainerItem container = item.GetComponent<WaterContainerItem>();
+                        if (container != null)
+                            container.Drink(body);
+                    },
+                    value = 7,
+                    rec = new Recognition(2),
+                    DropPool = DropPool.FoodCrate | DropPool.AllTraders,
+                    SpawnFrequency = 1
+                },
+                ItemIcons.Jar(brine, withPickles: true));
+
+            ItemRegistry.Register(
+                "picklejuicejar",
+                new CustomItemInfo
+                {
+                    fullName = "Pickle Jar",
+                    description = "The pickles are gone, but salty brine still fills the jar.",
+                    category = "food",
+                    slotRotation = -20f,
+                    tags = "cangetwet",
+                    usable = true,
+                    usableOnLimb = false,
+                    destroyAtZeroCondition = false,
+                    combineable = true,
+                    weight = 1.2f,
+                    scaleWeightWithCondition = true,
+                    capacity = 400f,
+                    autoFill = false,
+                    LiquidMask = ItemIcons.JarMask(),
+                    defaultContents = new List<LiquidStack>
+                    {
+                        new LiquidStack("picklejuice", 400f)
+                    },
+                    useAction = (body, item) =>
+                    {
+                        WaterContainerItem container = item.GetComponent<WaterContainerItem>();
+                        if (container != null)
+                            container.Drink(body);
+                    },
+                    value = 3,
+                    rec = new Recognition(2),
+                    SpawnFrequency = 0
+                },
+                ItemIcons.Jar(brine, withPickles: false));
+
+            ItemRegistry.Register(
+                "pickles",
+                new CustomItemInfo
+                {
+                    fullName = "Pickles",
+                    description = "Crunchy, salty pickles pulled straight from the jar.",
+                    category = "food",
+                    usable = true,
+                    usableOnLimb = false,
+                    destroyAtZeroCondition = true,
+                    combineable = true,
+                    weight = 0.35f,
+                    scaleWeightWithCondition = true,
+                    decayMinutes = 240f,
+                    tags = "cangetwet",
+                    value = 4,
+                    rec = new Recognition(2),
+                    SpawnFrequency = 0,
+                    useAction = (body, item) =>
+                    {
+                        body.Eat(10f, 0.35f);
+                        body.Drink(2f);
+                        body.happiness += 1.5f;
+                        item.condition -= 1f;
+                        Sound.Play("eatCrunch", (Vector2)body.transform.position);
+                    }
+                },
+                ItemIcons.Pickles());
+
+            RecipeRegistry.Register(new Recipe
+            {
+                INT = 2,
+                specialKnown = true,
+                category = Recipes.RecipeCategory.Food,
+                result = new RecipeResult
+                {
+                    id = "pickles",
+                    amount = 1,
+                    resultCondition = 1f
+                },
+                items = new List<RecipeItem>
+                {
+                    new RecipeItem(0f) { specificId = "picklejar" }
+                }
+            });
+
+            Logger.LogInfo("Registered pickle jar, pickles, and pickle extraction recipe");
         }
 
         private static void RegisterDrinkBottle(

@@ -22,6 +22,21 @@ namespace DrinksAndDrugs
             return CreateSprite(DrawSyringe(liquid));
         }
 
+        public static Sprite Jar(Color liquid, bool withPickles)
+        {
+            return CreateSprite(DrawJar(liquid, withPickles));
+        }
+
+        public static Sprite JarMask()
+        {
+            return CreateSprite(DrawJarMask());
+        }
+
+        public static Sprite Pickles()
+        {
+            return CreateSprite(DrawPickles());
+        }
+
         private static Sprite CreateSprite(Color32[] pixels)
         {
             var texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false)
@@ -78,6 +93,56 @@ namespace DrinksAndDrugs
             FillRect(pixels, 1, 6, 2, 4, plunger);
             FillRect(pixels, 12, 7, 3, 2, needle);
             DrawRect(pixels, 3, 6, 9, 4, outline);
+            return pixels;
+        }
+
+        private static Color32[] DrawJar(Color liquid, bool withPickles)
+        {
+            Color32[] pixels = ClearPixels();
+            Color32 glass = new Color32(210, 220, 230, 230);
+            Color32 outline = new Color32(28, 32, 38, 255);
+            Color32 lid = new Color32(96, 72, 48, 255);
+            Color32 fill = ToColor32(liquid, 220);
+            Color32 pickle = new Color32(70, 120, 48, 255);
+
+            FillRect(pixels, 4, 2, 8, 11, glass);
+            FillRect(pixels, 5, 3, 6, 9, fill);
+            if (withPickles)
+            {
+                FillRect(pixels, 6, 4, 2, 3, pickle);
+                FillRect(pixels, 9, 7, 2, 3, pickle);
+                FillRect(pixels, 6, 9, 2, 2, pickle);
+            }
+
+            FillRect(pixels, 4, 13, 8, 2, lid);
+            DrawRect(pixels, 4, 2, 8, 11, outline);
+            DrawRect(pixels, 4, 13, 8, 2, outline);
+            return pixels;
+        }
+
+        private static Color32[] DrawJarMask()
+        {
+            Color32[] pixels = ClearPixels();
+            Color32 mask = new Color32(255, 255, 255, 255);
+            FillRect(pixels, 5, 3, 6, 9, mask);
+            return pixels;
+        }
+
+        private static Color32[] DrawPickles()
+        {
+            Color32[] pixels = ClearPixels();
+            Color32 outline = new Color32(28, 32, 38, 255);
+            Color32 pickle = new Color32(70, 120, 48, 255);
+            Color32 highlight = new Color32(120, 160, 70, 255);
+
+            FillRect(pixels, 3, 4, 3, 8, pickle);
+            FillRect(pixels, 7, 3, 3, 9, pickle);
+            FillRect(pixels, 11, 5, 2, 7, pickle);
+            FillRect(pixels, 4, 5, 1, 2, highlight);
+            FillRect(pixels, 8, 4, 1, 2, highlight);
+            DrawRect(pixels, 3, 4, 3, 8, outline);
+            DrawRect(pixels, 7, 3, 3, 9, outline);
+            DrawRect(pixels, 11, 5, 2, 7, outline);
             return pixels;
         }
 

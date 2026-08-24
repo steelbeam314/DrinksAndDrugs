@@ -28,6 +28,7 @@ namespace DrinksAndDrugs
 
             RegisterLiquids();
             RegisterLiquidContainers();
+            RegisterPickleItems();
             ClassSelection.EnsureRegistered();
             ClassSelection.RegisterConsoleCommand();
 
