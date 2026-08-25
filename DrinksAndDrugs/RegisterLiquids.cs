@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using CUCoreLib.Data;
 using CUCoreLib.Helpers;
 using CUCoreLib.Registries;
@@ -213,6 +214,12 @@ namespace DrinksAndDrugs
 
         private void RegisterPickleItems()
         {
+            Sprite pickledJarIcon = LoadAssetSprite("pickle_jar_pickled.png");
+            Sprite brineJarIcon = LoadAssetSprite("pickle_jar.png");
+            Sprite picklesIcon = LoadAssetSprite("pickle.png");
+
+            Sprite jarLiquidMask = ItemIcons.JarMaskAsset();
+
             ItemRegistry.Register(
                 "picklejar",
                 new CustomItemInfo
@@ -230,7 +237,7 @@ namespace DrinksAndDrugs
                     scaleWeightWithCondition = true,
                     capacity = 400f,
                     autoFill = false,
-                    LiquidMask = ItemIcons.JarMask(),
+                    LiquidMask = jarLiquidMask,
                     defaultContents = new List<LiquidStack>
                     {
                         new LiquidStack("picklejuice", 400f)
@@ -247,7 +254,7 @@ namespace DrinksAndDrugs
                     SpawnFrequency = 1,
                     SpriteScaleDimensions = (14f, 14f, true)
                 },
-                AssetLoader.LoadEmbeddedSprite("Assets.pickle_jar_pickled.png"));
+                pickledJarIcon);
 
             ItemRegistry.Register(
                 "picklejuicejar",
@@ -266,7 +273,7 @@ namespace DrinksAndDrugs
                     scaleWeightWithCondition = true,
                     capacity = 400f,
                     autoFill = false,
-                    LiquidMask = ItemIcons.JarMask(),
+                    LiquidMask = jarLiquidMask,
                     defaultContents = new List<LiquidStack>(),
                     useAction = (body, item) =>
                     {
@@ -279,7 +286,7 @@ namespace DrinksAndDrugs
                     SpawnFrequency = 0,
                     SpriteScaleDimensions = (14f, 14f, true)
                 },
-                AssetLoader.LoadEmbeddedSprite("Assets.pickle_jar.png"));
+                brineJarIcon);
 
             ItemRegistry.Register(
                 "pickles",
@@ -309,7 +316,7 @@ namespace DrinksAndDrugs
                         Sound.Play("eatCrunch", (Vector2)body.transform.position);
                     }
                 },
-                AssetLoader.LoadEmbeddedSprite("Assets.pickle.png"));
+                picklesIcon);
 
             RecipeRegistry.Register(new Recipe
             {
@@ -341,7 +348,10 @@ namespace DrinksAndDrugs
             DropPool dropPool,
             string iconFile = null)
         {
-            Sprite icon = LoadAssetSprite(iconFile) ?? ItemIcons.Bottle(liquidColor);
+            Sprite assetIcon = LoadAssetSprite(iconFile);
+            bool useAssetIcon = assetIcon != null;
+            Sprite icon = assetIcon ?? ItemIcons.Bottle(liquidColor);
+
             CustomItemInfo info = new CustomItemInfo
             {
                 fullName = name,
@@ -357,7 +367,8 @@ namespace DrinksAndDrugs
                 scaleWeightWithCondition = true,
                 capacity = 500f,
                 autoFill = false,
-                LiquidMask = ItemIcons.BottleMask(),
+                // Asset icons already depict the liquid; LiquidMask would cover them.
+                LiquidMask = useAssetIcon ? null : ItemIcons.BottleMask(),
                 defaultContents = new List<LiquidStack>
                 {
                     new LiquidStack(liquidId, 500f)
@@ -373,7 +384,7 @@ namespace DrinksAndDrugs
                 DropPool = dropPool,
                 SpawnFrequency = 1
             };
-            if (iconFile != null)
+            if (useAssetIcon)
                 info.SpriteScaleDimensions = (14f, 14f, true);
 
             ItemRegistry.Register(id, info, icon);
@@ -389,7 +400,10 @@ namespace DrinksAndDrugs
             DropPool dropPool,
             string iconFile = null)
         {
-            Sprite icon = LoadAssetSprite(iconFile) ?? ItemIcons.Syringe(liquidColor);
+            Sprite assetIcon = LoadAssetSprite(iconFile);
+            bool useAssetIcon = assetIcon != null;
+            Sprite icon = assetIcon ?? ItemIcons.Syringe(liquidColor);
+
             CustomItemInfo info = new CustomItemInfo
             {
                 fullName = name,
@@ -417,7 +431,7 @@ namespace DrinksAndDrugs
                 DropPool = dropPool,
                 SpawnFrequency = 1
             };
-            if (iconFile != null)
+            if (useAssetIcon)
                 info.SpriteScaleDimensions = (14f, 14f, true);
 
             ItemRegistry.Register(id, info, icon);
@@ -428,7 +442,18 @@ namespace DrinksAndDrugs
             if (string.IsNullOrEmpty(fileName))
                 return null;
 
-            return AssetLoader.LoadEmbeddedSprite("Assets." + fileName);
+            // Pass this assembly explicitly so GetCallingAssembly cannot resolve to CUCoreLib.
+            Sprite sprite = AssetLoader.LoadEmbeddedSprite(
+                "Assets." + fileName,
+                pixelsPerUnit: 8f,
+                sourceAssembly: Assembly.GetExecutingAssembly());
+
+            if (sprite == null)
+                Logger?.LogWarning($"Failed to load embedded sprite Assets.{fileName}");
+            else
+                Logger?.LogInfo($"Loaded embedded sprite Assets.{fileName}");
+
+            return sprite;
         }
 
         /// <summary>

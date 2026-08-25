@@ -5,31 +5,41 @@ namespace DrinksAndDrugs
     internal static class ItemIcons
     {
         private const int Size = 16;
+        private const int JarWidth = 6;
+        private const int JarHeight = 12;
         private const float PixelsPerUnit = 8f;
 
         public static Sprite Bottle(Color liquid)
         {
-            return CreateSprite(DrawBottle(liquid));
+            return CreateSprite(DrawBottle(liquid), Size, Size);
         }
 
         public static Sprite BottleMask()
         {
-            return CreateSprite(DrawBottleMask());
+            return CreateSprite(DrawBottleMask(), Size, Size);
         }
 
         public static Sprite Syringe(Color liquid)
         {
-            return CreateSprite(DrawSyringe(liquid));
+            return CreateSprite(DrawSyringe(liquid), Size, Size);
         }
 
         public static Sprite JarMask()
         {
-            return CreateSprite(DrawJarMask());
+            return CreateSprite(DrawJarMask(), Size, Size);
         }
 
-        private static Sprite CreateSprite(Color32[] pixels)
+        /// <summary>
+        /// Fill mask aligned to the embedded 6x12 pickle jar sprites.
+        /// </summary>
+        public static Sprite JarMaskAsset()
         {
-            var texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false)
+            return CreateSprite(DrawJarMaskAsset(), JarWidth, JarHeight);
+        }
+
+        private static Sprite CreateSprite(Color32[] pixels, int width, int height)
+        {
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
             {
                 filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp
@@ -39,100 +49,110 @@ namespace DrinksAndDrugs
 
             return Sprite.Create(
                 texture,
-                new Rect(0f, 0f, Size, Size),
+                new Rect(0f, 0f, width, height),
                 new Vector2(0.5f, 0.5f),
                 PixelsPerUnit);
         }
 
         private static Color32[] DrawBottle(Color liquid)
         {
-            Color32[] pixels = ClearPixels();
+            Color32[] pixels = ClearPixels(Size, Size);
             Color32 glass = new Color32(210, 220, 230, 230);
             Color32 outline = new Color32(28, 32, 38, 255);
             Color32 cap = new Color32(90, 90, 96, 255);
             Color32 fill = ToColor32(liquid, 230);
 
-            FillRect(pixels, 5, 2, 6, 10, glass);
-            FillRect(pixels, 6, 3, 4, 8, fill);
-            FillRect(pixels, 6, 12, 4, 2, glass);
-            FillRect(pixels, 6, 14, 4, 2, cap);
-            DrawRect(pixels, 5, 2, 6, 12, outline);
-            DrawRect(pixels, 6, 14, 4, 2, outline);
+            FillRect(pixels, Size, 5, 2, 6, 10, glass);
+            FillRect(pixels, Size, 6, 3, 4, 8, fill);
+            FillRect(pixels, Size, 6, 12, 4, 2, glass);
+            FillRect(pixels, Size, 6, 14, 4, 2, cap);
+            DrawRect(pixels, Size, 5, 2, 6, 12, outline);
+            DrawRect(pixels, Size, 6, 14, 4, 2, outline);
             return pixels;
         }
 
         private static Color32[] DrawBottleMask()
         {
-            Color32[] pixels = ClearPixels();
+            Color32[] pixels = ClearPixels(Size, Size);
             Color32 mask = new Color32(255, 255, 255, 255);
-            FillRect(pixels, 6, 3, 4, 8, mask);
+            FillRect(pixels, Size, 6, 3, 4, 8, mask);
             return pixels;
         }
 
         private static Color32[] DrawSyringe(Color liquid)
         {
-            Color32[] pixels = ClearPixels();
+            Color32[] pixels = ClearPixels(Size, Size);
             Color32 body = new Color32(230, 236, 240, 255);
             Color32 outline = new Color32(28, 32, 38, 255);
             Color32 plunger = new Color32(70, 74, 80, 255);
             Color32 needle = new Color32(170, 176, 184, 255);
             Color32 fill = ToColor32(liquid, 230);
 
-            FillRect(pixels, 3, 6, 9, 4, body);
-            FillRect(pixels, 4, 7, 6, 2, fill);
-            FillRect(pixels, 1, 6, 2, 4, plunger);
-            FillRect(pixels, 12, 7, 3, 2, needle);
-            DrawRect(pixels, 3, 6, 9, 4, outline);
+            FillRect(pixels, Size, 3, 6, 9, 4, body);
+            FillRect(pixels, Size, 4, 7, 6, 2, fill);
+            FillRect(pixels, Size, 1, 6, 2, 4, plunger);
+            FillRect(pixels, Size, 12, 7, 3, 2, needle);
+            DrawRect(pixels, Size, 3, 6, 9, 4, outline);
             return pixels;
         }
 
         private static Color32[] DrawJarMask()
         {
-            Color32[] pixels = ClearPixels();
+            Color32[] pixels = ClearPixels(Size, Size);
             Color32 mask = new Color32(255, 255, 255, 255);
-            FillRect(pixels, 5, 3, 6, 9, mask);
+            FillRect(pixels, Size, 5, 3, 6, 9, mask);
             return pixels;
         }
 
-        private static Color32[] ClearPixels()
+        private static Color32[] DrawJarMaskAsset()
         {
-            var pixels = new Color32[Size * Size];
+            // Only the hollow interior — keep glass rim / label pixels outside the mask
+            // so LiquidFill does not paint over them.
+            Color32[] pixels = ClearPixels(JarWidth, JarHeight);
+            Color32 mask = new Color32(255, 255, 255, 255);
+            FillRect(pixels, JarWidth, 0, 5, 6, 4, mask);
+            return pixels;
+        }
+
+        private static Color32[] ClearPixels(int width, int height)
+        {
+            var pixels = new Color32[width * height];
             Color32 clear = new Color32(0, 0, 0, 0);
             for (int i = 0; i < pixels.Length; i++)
                 pixels[i] = clear;
             return pixels;
         }
 
-        private static void FillRect(Color32[] pixels, int x, int y, int width, int height, Color32 color)
+        private static void FillRect(Color32[] pixels, int stride, int x, int y, int width, int height, Color32 color)
         {
             for (int py = y; py < y + height; py++)
             {
                 for (int px = x; px < x + width; px++)
-                    SetPixel(pixels, px, py, color);
+                    SetPixel(pixels, stride, px, py, color);
             }
         }
 
-        private static void DrawRect(Color32[] pixels, int x, int y, int width, int height, Color32 color)
+        private static void DrawRect(Color32[] pixels, int stride, int x, int y, int width, int height, Color32 color)
         {
             for (int px = x; px < x + width; px++)
             {
-                SetPixel(pixels, px, y, color);
-                SetPixel(pixels, px, y + height - 1, color);
+                SetPixel(pixels, stride, px, y, color);
+                SetPixel(pixels, stride, px, y + height - 1, color);
             }
 
             for (int py = y; py < y + height; py++)
             {
-                SetPixel(pixels, x, py, color);
-                SetPixel(pixels, x + width - 1, py, color);
+                SetPixel(pixels, stride, x, py, color);
+                SetPixel(pixels, stride, x + width - 1, py, color);
             }
         }
 
-        private static void SetPixel(Color32[] pixels, int x, int y, Color32 color)
+        private static void SetPixel(Color32[] pixels, int stride, int x, int y, Color32 color)
         {
-            if (x < 0 || y < 0 || x >= Size || y >= Size)
+            if (x < 0 || y < 0 || x >= stride)
                 return;
 
-            pixels[y * Size + x] = color;
+            pixels[y * stride + x] = color;
         }
 
         private static Color32 ToColor32(Color color, byte alpha)
