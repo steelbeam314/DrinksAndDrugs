@@ -132,6 +132,16 @@ namespace DrinksAndDrugs
             Color nitrogen = new Color(0.72f, 0.88f, 1f);
 
             RegisterDrinkBottle(
+                "distilledtonicbottle",
+                "Distilled Tonic bottle",
+                "A bottle of oddly sweet lab tonic.",
+                "distilledtonic",
+                tonic,
+                value: 5,
+                dropPool: DropPool.MedicalCrate | DropPool.AllTraders,
+                iconFile: "tonic_bottle.png");
+
+            RegisterDrinkBottle(
                 "deathjuicebottle",
                 "Death Juice bottle",
                 "A dark bottle that smells better than it should.",
@@ -147,7 +157,8 @@ namespace DrinksAndDrugs
                 "brainfuck",
                 brainfuck,
                 value: 6,
-                dropPool: DropPool.MedicalCrate | DropPool.Corpse);
+                dropPool: DropPool.MedicalCrate | DropPool.Corpse,
+                iconFile: "brainfuck_bottle.png");
 
             RegisterDrinkBottle(
                 "liquidnitrogenbottle",
@@ -156,7 +167,8 @@ namespace DrinksAndDrugs
                 "liquidnitrogen",
                 nitrogen,
                 value: 5,
-                dropPool: DropPool.MedicalCrate | DropPool.ContainerCrate);
+                dropPool: DropPool.MedicalCrate | DropPool.ContainerCrate,
+                iconFile: "liquid_nitrogen_bottle.png");
 
             RegisterSyringe(
                 "distilledtonicsyringe",
@@ -174,16 +186,18 @@ namespace DrinksAndDrugs
                 "deathjuice",
                 deathJuice,
                 value: 10,
-                dropPool: DropPool.MedicalCrate | DropPool.Corpse);
+                dropPool: DropPool.MedicalCrate | DropPool.Corpse,
+                iconFile: "death_juice_syringe.png");
 
             RegisterSyringe(
                 "stimfluidsyringe",
-                "Stim Fluid syringe",
+                "War Stimulant syringe",
                 "A military stimulant injector. One full syringe is a complete dose.",
                 "stimfluid",
                 stim,
                 value: 12,
-                dropPool: DropPool.MedicalCrate | DropPool.Corpse);
+                dropPool: DropPool.MedicalCrate | DropPool.Corpse,
+                iconFile: "war_stim.png");
 
             RegisterSyringe(
                 "brainfucksyringe",
@@ -199,14 +213,12 @@ namespace DrinksAndDrugs
 
         private void RegisterPickleItems()
         {
-            Color brine = new Color(0.72f, 0.78f, 0.42f);
-
             ItemRegistry.Register(
                 "picklejar",
                 new CustomItemInfo
                 {
                     fullName = "Pickle Jar",
-                    description = "A sealed glass jar packed with pickles floating in brine. Craft it to take the pickles out.",
+                    description = "A sealed glass jar packed with pickles.",
                     category = "food",
                     slotRotation = -20f,
                     tags = "cangetwet",
@@ -232,16 +244,17 @@ namespace DrinksAndDrugs
                     value = 7,
                     rec = new Recognition(2),
                     DropPool = DropPool.FoodCrate | DropPool.AllTraders,
-                    SpawnFrequency = 1
+                    SpawnFrequency = 1,
+                    SpriteScaleDimensions = (14f, 14f, true)
                 },
-                ItemIcons.Jar(brine, withPickles: true));
+                AssetLoader.LoadEmbeddedSprite("Assets.pickle_jar_pickled.png"));
 
             ItemRegistry.Register(
                 "picklejuicejar",
                 new CustomItemInfo
                 {
                     fullName = "Pickle Jar",
-                    description = "The pickles are gone, but salty brine still fills the jar.",
+                    description = "The pickles are gone now.",
                     category = "food",
                     slotRotation = -20f,
                     tags = "cangetwet",
@@ -254,10 +267,7 @@ namespace DrinksAndDrugs
                     capacity = 400f,
                     autoFill = false,
                     LiquidMask = ItemIcons.JarMask(),
-                    defaultContents = new List<LiquidStack>
-                    {
-                        new LiquidStack("picklejuice", 400f)
-                    },
+                    defaultContents = new List<LiquidStack>(),
                     useAction = (body, item) =>
                     {
                         WaterContainerItem container = item.GetComponent<WaterContainerItem>();
@@ -266,9 +276,10 @@ namespace DrinksAndDrugs
                     },
                     value = 3,
                     rec = new Recognition(2),
-                    SpawnFrequency = 0
+                    SpawnFrequency = 0,
+                    SpriteScaleDimensions = (14f, 14f, true)
                 },
-                ItemIcons.Jar(brine, withPickles: false));
+                AssetLoader.LoadEmbeddedSprite("Assets.pickle_jar.png"));
 
             ItemRegistry.Register(
                 "pickles",
@@ -288,6 +299,7 @@ namespace DrinksAndDrugs
                     value = 4,
                     rec = new Recognition(2),
                     SpawnFrequency = 0,
+                    SpriteScaleDimensions = (14f, 14f, true),
                     useAction = (body, item) =>
                     {
                         body.Eat(10f, 0.35f);
@@ -297,7 +309,7 @@ namespace DrinksAndDrugs
                         Sound.Play("eatCrunch", (Vector2)body.transform.position);
                     }
                 },
-                ItemIcons.Pickles());
+                AssetLoader.LoadEmbeddedSprite("Assets.pickle.png"));
 
             RecipeRegistry.Register(new Recipe
             {
@@ -326,42 +338,45 @@ namespace DrinksAndDrugs
             string liquidId,
             Color liquidColor,
             int value,
-            DropPool dropPool)
+            DropPool dropPool,
+            string iconFile = null)
         {
-            ItemRegistry.Register(
-                id,
-                new CustomItemInfo
+            Sprite icon = LoadAssetSprite(iconFile) ?? ItemIcons.Bottle(liquidColor);
+            CustomItemInfo info = new CustomItemInfo
+            {
+                fullName = name,
+                description = description,
+                category = "water",
+                slotRotation = -45f,
+                tags = "cangetwet",
+                usable = true,
+                usableOnLimb = false,
+                destroyAtZeroCondition = false,
+                combineable = true,
+                weight = 1.25f,
+                scaleWeightWithCondition = true,
+                capacity = 500f,
+                autoFill = false,
+                LiquidMask = ItemIcons.BottleMask(),
+                defaultContents = new List<LiquidStack>
                 {
-                    fullName = name,
-                    description = description,
-                    category = "water",
-                    slotRotation = -45f,
-                    tags = "cangetwet",
-                    usable = true,
-                    usableOnLimb = false,
-                    destroyAtZeroCondition = false,
-                    combineable = true,
-                    weight = 1.25f,
-                    scaleWeightWithCondition = true,
-                    capacity = 500f,
-                    autoFill = false,
-                    LiquidMask = ItemIcons.BottleMask(),
-                    defaultContents = new List<LiquidStack>
-                    {
-                        new LiquidStack(liquidId, 500f)
-                    },
-                    useAction = (body, item) =>
-                    {
-                        WaterContainerItem container = item.GetComponent<WaterContainerItem>();
-                        if (container != null)
-                            container.Drink(body);
-                    },
-                    value = value,
-                    rec = new Recognition(2),
-                    DropPool = dropPool,
-                    SpawnFrequency = 1
+                    new LiquidStack(liquidId, 500f)
                 },
-                ItemIcons.Bottle(liquidColor));
+                useAction = (body, item) =>
+                {
+                    WaterContainerItem container = item.GetComponent<WaterContainerItem>();
+                    if (container != null)
+                        container.Drink(body);
+                },
+                value = value,
+                rec = new Recognition(2),
+                DropPool = dropPool,
+                SpawnFrequency = 1
+            };
+            if (iconFile != null)
+                info.SpriteScaleDimensions = (14f, 14f, true);
+
+            ItemRegistry.Register(id, info, icon);
         }
 
         private static void RegisterSyringe(
@@ -371,38 +386,49 @@ namespace DrinksAndDrugs
             string liquidId,
             Color liquidColor,
             int value,
-            DropPool dropPool)
+            DropPool dropPool,
+            string iconFile = null)
         {
-            ItemRegistry.Register(
-                id,
-                new CustomItemInfo
+            Sprite icon = LoadAssetSprite(iconFile) ?? ItemIcons.Syringe(liquidColor);
+            CustomItemInfo info = new CustomItemInfo
+            {
+                fullName = name,
+                description = description,
+                category = "medicine",
+                tags = "medicine",
+                slotRotation = -45f,
+                destroyAtZeroCondition = false,
+                combineable = true,
+                scaleWeightWithCondition = true,
+                weight = 0.25f,
+                value = value,
+                rec = new Recognition(5),
+                Syringe = new SyringeProperties
                 {
-                    fullName = name,
-                    description = description,
-                    category = "medicine",
-                    tags = "medicine",
-                    slotRotation = -45f,
-                    destroyAtZeroCondition = false,
-                    combineable = true,
-                    scaleWeightWithCondition = true,
-                    weight = 0.25f,
-                    value = value,
-                    rec = new Recognition(5),
-                    Syringe = new SyringeProperties
+                    Capacity = 100f,
+                    AmountPerFullUse = 100f,
+                    AutoFill = false,
+                    UseAverageColor = true,
+                    DefaultContents = new List<LiquidStack>
                     {
-                        Capacity = 100f,
-                        AmountPerFullUse = 100f,
-                        AutoFill = false,
-                        UseAverageColor = true,
-                        DefaultContents = new List<LiquidStack>
-                        {
-                            new LiquidStack(liquidId, 100f)
-                        }
-                    },
-                    DropPool = dropPool,
-                    SpawnFrequency = 1
+                        new LiquidStack(liquidId, 100f)
+                    }
                 },
-                ItemIcons.Syringe(liquidColor));
+                DropPool = dropPool,
+                SpawnFrequency = 1
+            };
+            if (iconFile != null)
+                info.SpriteScaleDimensions = (14f, 14f, true);
+
+            ItemRegistry.Register(id, info, icon);
+        }
+
+        private static Sprite LoadAssetSprite(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+                return null;
+
+            return AssetLoader.LoadEmbeddedSprite("Assets." + fileName);
         }
 
         /// <summary>

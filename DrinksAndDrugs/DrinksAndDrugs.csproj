@@ -48,6 +48,10 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\*.png" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
     <PackageReference
       Include="Microsoft.NETFramework.ReferenceAssemblies"

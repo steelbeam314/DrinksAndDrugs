@@ -1,0 +1,15 @@
+Install
+
+1. Install BepInEx 5 so the game folder contains BepInEx/.
+2. Put CUCoreLib.dll in BepInEx/plugins/CUCoreLib.dll
+3. Put this file in BepInEx/plugins/DrinksAndDrugs.dll
+
+Do not leave CUCoreLib inside a nested folder.
+Do not download the GitHub HTML page and rename it to .dll.
+If DrinksAndDrugs.dll is only a few KB, it is not the real plugin.
+
+After launch, BepInEx/LogOutput.log should contain:
+  Loading [DrinksAndDrugs 0.1.0]
+  Plugin DrinksAndDrugs is loaded!
+
+In the game console, type: setclass

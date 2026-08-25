@@ -27,32 +27,43 @@ namespace DrinksAndDrugs
             }
         }
 
-        // Crafting pickles from a full pickle jar leaves the brine jar behind.
+        // Crafting pickles from a pickle jar leaves the brine jar behind with the remaining juice.
         [HarmonyPatch(typeof(Recipe), nameof(Recipe.TryMake))]
         internal static class PickleJarCraftPatch
         {
-            [HarmonyPostfix]
-            private static void Postfix(Recipe __instance)
+            private static List<LiquidStack> _leftoverLiquids;
+
+            [HarmonyPrefix]
+            private static void Prefix(Recipe __instance)
             {
+                _leftoverLiquids = null;
                 if (__instance?.result == null || __instance.result.id != "pickles")
                     return;
 
-                if (__instance.items == null)
+                List<Item> ingredients = __instance.GetItemsForRecipe();
+                if (ingredients == null)
                     return;
 
-                bool usedPickleJar = false;
-                for (int i = 0; i < __instance.items.Count; i++)
+                for (int i = 0; i < ingredients.Count; i++)
                 {
-                    RecipeItem ingredient = __instance.items[i];
-                    if (ingredient != null && ingredient.specificId == "picklejar")
-                    {
-                        usedPickleJar = true;
-                        break;
-                    }
-                }
+                    Item item = ingredients[i];
+                    if (item == null || item.id != "picklejar")
+                        continue;
 
-                if (!usedPickleJar)
+                    WaterContainerItem container = item.GetComponent<WaterContainerItem>();
+                    _leftoverLiquids = CopyLiquidStacks(container);
                     return;
+                }
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix()
+            {
+                if (_leftoverLiquids == null)
+                    return;
+
+                List<LiquidStack> leftoverLiquids = _leftoverLiquids;
+                _leftoverLiquids = null;
 
                 Body body = PlayerCamera.main != null ? PlayerCamera.main.body : null;
                 if (body == null)
@@ -67,9 +78,49 @@ namespace DrinksAndDrugs
                 if (spawned == null)
                     return;
 
+                WaterContainerItem leftoverContainer = spawned.GetComponent<WaterContainerItem>();
+                if (leftoverContainer != null)
+                    ApplyLiquidStacks(leftoverContainer, leftoverLiquids);
+
                 Item leftover = spawned.GetComponent<Item>();
                 if (leftover != null)
                     body.AutoPickUpItem(leftover);
+            }
+
+            private static List<LiquidStack> CopyLiquidStacks(WaterContainerItem container)
+            {
+                var copy = new List<LiquidStack>();
+                if (container == null || container.stack == null)
+                    return copy;
+
+                for (int i = 0; i < container.stack.Count; i++)
+                {
+                    LiquidStack stack = container.stack[i];
+                    if (stack == null || stack.amount <= 0f)
+                        continue;
+
+                    copy.Add(new LiquidStack(stack.liquidId, stack.amount));
+                }
+
+                return copy;
+            }
+
+            private static void ApplyLiquidStacks(WaterContainerItem container, List<LiquidStack> stacks)
+            {
+                container.DrainAll();
+                if (stacks == null)
+                    return;
+
+                for (int i = 0; i < stacks.Count; i++)
+                {
+                    LiquidStack stack = stacks[i];
+                    if (stack == null || stack.amount <= 0f)
+                        continue;
+
+                    container.AddLiquid(stack.liquidId, stack.amount);
+                }
+
+                container.UpdateCondition();
             }
         }
 
