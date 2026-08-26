@@ -4,6 +4,7 @@
     <AssemblyName>DrinksAndDrugs</AssemblyName>
     <RootNamespace>DrinksAndDrugs</RootNamespace>
     <Product>DrinksAndDrugs</Product>
+    <Authors>Mr Devman</Authors>
     <Version>1.0.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>

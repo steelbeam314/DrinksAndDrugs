@@ -9,7 +9,7 @@ namespace DrinksAndDrugs
     [BepInDependency("net.cucorelib", BepInDependency.DependencyFlags.HardDependency)]
     public partial class Plugin : BaseUnityPlugin
     {
-        public const string ModGUID = "mathias.drinksanddrugs";
+        public const string ModGUID = "mrdevman.drinksanddrugs";
         public const string ModName = "DrinksAndDrugs";
         public const string ModVersion = "0.1.0";
 
