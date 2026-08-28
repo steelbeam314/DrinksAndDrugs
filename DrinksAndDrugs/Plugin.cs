@@ -13,8 +13,11 @@ namespace DrinksAndDrugs
         public const string ModName = "DrinksAndDrugs";
         public const string ModVersion = "0.1.0";
 
-        public const string DefaultClassId = "scavenger";
+        public const string SurvivorClassId = "survivor";
+        public const string DefaultClassId = SurvivorClassId;
         public const string DrugTesterClassId = "drugtester";
+        public const string FailureClassId = "failure";
+        public const string NamelessClassId = "nameless";
         public static string SelectedClassId = DefaultClassId;
 
         internal static new ManualLogSource Logger;
@@ -29,6 +32,7 @@ namespace DrinksAndDrugs
             RegisterLiquids();
             RegisterLiquidContainers();
             RegisterPickleItems();
+            RegisterPeanutItems();
             ClassSelection.EnsureRegistered();
             ClassSelection.RegisterConsoleCommand();
 

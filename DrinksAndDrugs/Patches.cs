@@ -1,6 +1,7 @@
 using CUCoreLib.Helpers;
 using CUCoreLib.Registries;
 using HarmonyLib;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -124,18 +125,70 @@ namespace DrinksAndDrugs
             }
         }
 
+        [HarmonyPatch(typeof(WaterContainerItem), "Start")]
+        internal static class PickleJarFillBehindSpritePatch
+        {
+            [HarmonyPostfix]
+            [HarmonyPriority(Priority.Last)]
+            private static void StartPostfix(WaterContainerItem __instance)
+            {
+                PutPickleJarFillBehindSprite(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(WaterContainerItem), "Update")]
+        internal static class PickleJarFillBehindSpriteUpdatePatch
+        {
+            [HarmonyPostfix]
+            [HarmonyPriority(Priority.Last)]
+            private static void UpdatePostfix(WaterContainerItem __instance)
+            {
+                PutPickleJarFillBehindSprite(__instance);
+            }
+        }
+
+        private static void PutPickleJarFillBehindSprite(WaterContainerItem container)
+        {
+            if (container == null || container.fillRenderer == null)
+                return;
+
+            Item item = container.item != null ? container.item : container.GetComponent<Item>();
+            if (item == null || (item.id != "picklejar" && item.id != "picklejuicejar" && item.id != "peanutjar"))
+                return;
+
+            SpriteRenderer itemRenderer = container.GetComponent<SpriteRenderer>();
+            if (itemRenderer == null)
+                return;
+
+            SpriteRenderer fill = container.fillRenderer;
+            fill.sortingLayerID = itemRenderer.sortingLayerID;
+            fill.sortingOrder = itemRenderer.sortingOrder - 1;
+
+            if (container.fillMaterial != null)
+            {
+                int itemQueue = 3000;
+                if (itemRenderer.sharedMaterial != null)
+                    itemQueue = itemRenderer.sharedMaterial.renderQueue;
+                container.fillMaterial.renderQueue = itemQueue - 1;
+            }
+        }
+
         [HarmonyPatch(typeof(Body), nameof(Body.Update))]
         internal static class DeathJuiceFeverPatch
         {
             // Degrees Celsius added per second once the wait/cooling phase ends.
             private const float FeverDegreesPerSecond = 0.75f;
+            private const float FeverMaxCelsius = 100f;
 
             [HarmonyPostfix]
             [HarmonyPriority(Priority.Last)]
             private static void Postfix(Body __instance)
             {
                 PlayerClasses.AssignLocalClassIfNeeded(__instance);
+                PlayerClasses.TickFailureEffects(__instance);
                 __instance.GetStatus<BrainfuckStatus>().Tick(__instance);
+                __instance.GetStatus<PeanutAllergyStatus>().Tick(__instance);
+                __instance.GetStatus<AxyltallisalStatus>().Tick(__instance);
 
                 DeathJuiceStatus status = __instance.GetStatus<DeathJuiceStatus>();
                 if (!status.CoolingActive && !status.FeverActive)
@@ -152,20 +205,15 @@ namespace DrinksAndDrugs
 
                     status.CoolingElapsed += Time.deltaTime;
                     float t = Mathf.Clamp01(status.CoolingElapsed / DeathJuiceStatus.WaitDurationSeconds);
-
-                    // Force the lerp every frame so vanilla temp recovery cannot fight the cool-down.
-                    __instance.temperature = Mathf.Lerp(
-                        status.CoolingStartTemperature,
-                        status.CoolingTargetTemperature,
-                        t);
+                    ApplyDeathJuiceTemperature(__instance, status);
 
                     if (t < 1f)
                         return;
 
                     status.CoolingActive = false;
                     status.CoolingElapsed = DeathJuiceStatus.WaitDurationSeconds;
-                    __instance.temperature = status.CoolingTargetTemperature;
                     status.FeverActive = true;
+                    status.FeverElapsed = 0f;
                 }
 
                 MoodleRegistry.AddMoodle(
@@ -175,25 +223,136 @@ namespace DrinksAndDrugs
                     description: "The nanomachines are overheating your body.",
                     key: "deathjuice.fever");
 
-                __instance.temperature += FeverDegreesPerSecond * Time.deltaTime;
+                status.FeverElapsed += Time.deltaTime;
+                ApplyDeathJuiceTemperature(__instance, status);
+
+                if (__instance.temperature >= FeverMaxCelsius)
+                    status.FeverActive = false;
+            }
+
+            internal static void ApplyDeathJuiceTemperature(Body body, DeathJuiceStatus status)
+            {
+                if (body == null || status == null)
+                    return;
+
+                if (status.CoolingActive)
+                {
+                    float t = Mathf.Clamp01(status.CoolingElapsed / DeathJuiceStatus.WaitDurationSeconds);
+                    body.temperature = Mathf.Lerp(
+                        status.CoolingStartTemperature,
+                        status.CoolingTargetTemperature,
+                        t);
+                    return;
+                }
+
+                if (!status.FeverActive)
+                    return;
+
+                body.temperature = Mathf.Min(
+                    FeverMaxCelsius,
+                    status.CoolingTargetTemperature + FeverDegreesPerSecond * status.FeverElapsed);
             }
         }
 
-        // HandleBody can overwrite brainHealth after Update; stamp the drain back on.
+        // HandleBody / HandleBodyTemperature overwrite vitals; stamp forced values back on.
         [HarmonyPatch(typeof(Body), nameof(Body.HandleBody))]
-        internal static class BrainfuckHandleBodyPatch
+        internal static class ForcedVitalsHandleBodyPatch
         {
             [HarmonyPostfix]
             [HarmonyPriority(Priority.Last)]
             private static void Postfix(Body __instance)
             {
-                BrainfuckStatus status = __instance.GetStatus<BrainfuckStatus>();
-                if (!status.Draining)
+                ApplyForcedVitals(__instance);
+                PlayerClasses.ApplyNamelessSimulation(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(Body), nameof(Body.HandleBodyTemperature))]
+        internal static class ForcedVitalsHandleBodyTemperaturePatch
+        {
+            [HarmonyPostfix]
+            [HarmonyPriority(Priority.Last)]
+            private static void Postfix(Body __instance)
+            {
+                ApplyForcedVitals(__instance);
+            }
+        }
+
+        private static void ApplyForcedVitals(Body body)
+        {
+            if (body == null)
+                return;
+
+            body.GetStatus<BrainfuckStatus>().ApplyToBody(body);
+            body.GetStatus<PeanutAllergyStatus>().ApplyToBody(body);
+            DeathJuiceFeverPatch.ApplyDeathJuiceTemperature(body, body.GetStatus<DeathJuiceStatus>());
+            body.GetStatus<AxyltallisalStatus>().ApplyToBody(body);
+        }
+
+        [HarmonyPatch(typeof(Body), nameof(Body.Eat))]
+        internal static class NamelessEatPatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(Body __instance, out float __state)
+            {
+                __state = __instance != null ? __instance.hunger : 0f;
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix(Body __instance, float __state)
+            {
+                if (__instance == null || !PlayerClasses.IsNameless(__instance))
                     return;
 
-                float t = Mathf.Clamp01(status.Elapsed / BrainfuckStatus.DrainDurationSeconds);
-                __instance.brainHealth = Mathf.Lerp(status.StartBrainHealth, status.TargetBrainHealth, t);
-                __instance.happiness = Mathf.Min(__instance.happiness, -20f);
+                __instance.hunger = PlayerClasses.CompressFullness(__state, __instance.hunger);
+            }
+        }
+
+        [HarmonyPatch(typeof(Body), nameof(Body.Drink))]
+        internal static class NamelessDrinkPatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(Body __instance, out float __state)
+            {
+                __state = __instance != null ? __instance.thirst : 0f;
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix(Body __instance, float __state)
+            {
+                if (__instance == null || !PlayerClasses.IsNameless(__instance))
+                    return;
+
+                __instance.thirst = PlayerClasses.CompressFullness(__state, __instance.thirst);
+            }
+        }
+
+        [HarmonyPatch(typeof(Body), nameof(Body.HandleVisuals))]
+        internal static class NamelessPainShakePatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(Body __instance, out bool __state)
+            {
+                PlayerClasses.BeginNamelessPainShake(__instance, out __state);
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix(Body __instance, bool __state)
+            {
+                PlayerClasses.EndNamelessPainShake(__instance, __state);
+            }
+        }
+
+        [HarmonyPatch(typeof(ScrollableText), nameof(ScrollableText.UpdateText))]
+        internal static class FailureScrambleReadableTextPatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(ref string str)
+            {
+                if (!PlayerClasses.ShouldScrambleReadableText())
+                    return;
+
+                str = PlayerClasses.ScrambleReadableText(str);
             }
         }
 
@@ -384,6 +543,110 @@ namespace DrinksAndDrugs
                     instructions,
                     AccessTools.Field(typeof(Painkillers), nameof(Painkillers.body)),
                     -34f);
+            }
+        }
+
+        [HarmonyPatch(typeof(WorldGeneration), "DistributeMiniBarrels")]
+        internal static class MiniBarrelDistributionPatch
+        {
+            internal static bool Active;
+
+            [HarmonyPrefix]
+            private static void Prefix()
+            {
+                Active = true;
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix()
+            {
+                Active = false;
+            }
+        }
+
+        [HarmonyPatch(typeof(WaterContainerItem), nameof(WaterContainerItem.AddLiquid))]
+        internal static class AxyltallisalMiniBarrelPatch
+        {
+            private const float KeepChance = 0.08f;
+            private const float MaxMilliliters = 20f;
+
+            [HarmonyPrefix]
+            private static bool Prefix(string liquidId, ref float amount)
+            {
+                if (!MiniBarrelDistributionPatch.Active)
+                    return true;
+
+                if (!string.Equals(liquidId, "axyltallisal", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                if (UnityEngine.Random.value > KeepChance)
+                    return false;
+
+                amount = Mathf.Min(amount, MaxMilliliters);
+                if (amount < 1f)
+                    amount = UnityEngine.Random.Range(2f, MaxMilliliters);
+
+                return true;
+            }
+        }
+
+        [HarmonyPatch(typeof(WaterContainerItem), nameof(WaterContainerItem.Drink))]
+        internal static class AxyltallisalDrinkMixPatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(WaterContainerItem __instance, Body body)
+            {
+                AxyltallisalStatus.NoteForeignDrugsInContainer(body, __instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(WaterContainerItem), nameof(WaterContainerItem.Inject))]
+        internal static class AxyltallisalInjectMixPatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(WaterContainerItem __instance, Limb limb, out bool __state)
+            {
+                __state = ContainerHasAxyltallisal(__instance);
+                Body body = limb != null ? limb.body : null;
+                AxyltallisalStatus.NoteForeignDrugsInContainer(body, __instance);
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix(WaterContainerItem __instance, Limb limb, bool __state)
+            {
+                if (!__state || ContainerHasAxyltallisal(__instance))
+                    return;
+
+                Body body = limb != null ? limb.body : null;
+                if (body == null)
+                    return;
+
+                AxyltallisalStatus status = body.GetStatus<AxyltallisalStatus>();
+                if (status.Dying)
+                    return;
+
+                float missing = AxyltallisalStatus.DoseMilliliters - status.AbsorbedMl;
+                if (missing > 0f)
+                    Plugin.ApplyAxyltallisalInject(body, missing);
+                else if (status.KnockedOut && status.Elapsed >= AxyltallisalStatus.SamePlungeGraceSeconds)
+                    status.Fatal = true;
+            }
+
+            private static bool ContainerHasAxyltallisal(WaterContainerItem container)
+            {
+                if (container == null || container.stack == null)
+                    return false;
+
+                for (int i = 0; i < container.stack.Count; i++)
+                {
+                    LiquidStack stack = container.stack[i];
+                    if (stack != null
+                        && stack.amount > 0.01f
+                        && string.Equals(stack.liquidId, "axyltallisal", StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+
+                return false;
             }
         }
     }

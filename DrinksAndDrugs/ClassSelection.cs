@@ -11,12 +11,14 @@ namespace DrinksAndDrugs
     internal static class ClassSelection
     {
         public const string SettingKey = "class";
-        public const string ScavengerChoice = "Scavenger";
+        public const string SurvivorChoice = "Survivor";
         public const string DrugTesterChoice = "DrugTester";
+        public const string FailureChoice = "Failure";
+        public const string NamelessChoice = "Nameless";
         public const string SetClassCommandName = "setclass";
 
-        public static readonly string[] Choices = { ScavengerChoice, DrugTesterChoice };
-        public static readonly string[] ClassIds = { Plugin.DefaultClassId, Plugin.DrugTesterClassId };
+        public static readonly string[] Choices = { SurvivorChoice, DrugTesterChoice, FailureChoice, NamelessChoice };
+        public static readonly string[] ClassIds = { Plugin.SurvivorClassId, Plugin.DrugTesterClassId, Plugin.FailureClassId, Plugin.NamelessClassId };
 
         public static bool IsMultiplayerEnabled()
         {
@@ -38,8 +40,10 @@ namespace DrinksAndDrugs
         {
             LocaleRegistry.Get("other", "runsetclass", "Class");
             LocaleRegistry.Get("other", "runsetclassdsc", "Your starting character class.");
-            LocaleRegistry.Get("other", "runsetclassScavenger", "Scavenger");
+            LocaleRegistry.Get("other", "runsetclassSurvivor", "Survivor");
             LocaleRegistry.Get("other", "runsetclassDrugTester", "Drug Tester");
+            LocaleRegistry.Get("other", "runsetclassFailure", "Failure");
+            LocaleRegistry.Get("other", "runsetclassNameless", "Nameless");
 
             if (RunSettings.settingTypes == null)
                 return;
@@ -92,7 +96,7 @@ namespace DrinksAndDrugs
 
             Dictionary<int, List<string>> autofill = new Dictionary<int, List<string>>
             {
-                { 0, new List<string> { "scavenger", "drugtester" } }
+                { 0, new List<string> { "survivor", "drugtester", "failure", "nameless" } }
             };
 
             ConsoleCommandRegistry.Register(new Command(
@@ -102,7 +106,7 @@ namespace DrinksAndDrugs
                 autofill,
                 new (string, string)[]
                 {
-                    ("string name", "Class name: scavenger or drugtester")
+                    ("string name", "Class name: survivor, drugtester, failure, or nameless")
                 }));
 
             _consoleCommandRegistered = true;
@@ -117,7 +121,7 @@ namespace DrinksAndDrugs
             if (args == null || args.Length < 2 || string.IsNullOrWhiteSpace(args[1]))
             {
                 console.LogToConsole("Current class: " + DisplayName(Plugin.SelectedClassId));
-                console.LogToConsole("Usage: setclass <scavenger|drugtester>");
+                console.LogToConsole("Usage: setclass <survivor|drugtester|failure|nameless>");
                 return;
             }
 
@@ -145,7 +149,7 @@ namespace DrinksAndDrugs
             string classId = ResolveClassId(raw);
             if (classId == null)
             {
-                error = "Unknown class. Use: scavenger, drugtester";
+                error = "Unknown class. Use: survivor, drugtester, failure, nameless";
                 return false;
             }
 
@@ -160,10 +164,14 @@ namespace DrinksAndDrugs
                 return null;
 
             string key = raw.Trim().ToLowerInvariant().Replace(" ", "").Replace("_", "-");
-            if (key == "scavenger" || key == "scav")
-                return Plugin.DefaultClassId;
+            if (key == "survivor" || key == "scavenger" || key == "scav")
+                return Plugin.SurvivorClassId;
             if (key == "drugtester" || key == "drug-tester" || key == "dt")
                 return Plugin.DrugTesterClassId;
+            if (key == "failure" || key == "fail")
+                return Plugin.FailureClassId;
+            if (key == "nameless" || key == "name" || key == "nl")
+                return Plugin.NamelessClassId;
 
             return null;
         }
@@ -309,10 +317,15 @@ namespace DrinksAndDrugs
 
         public static string DisplayName(string classId)
         {
+            classId = PlayerClasses.NormalizeClassId(classId);
             if (classId == Plugin.DrugTesterClassId)
                 return "Drug Tester";
+            if (classId == Plugin.FailureClassId)
+                return "Failure";
+            if (classId == Plugin.NamelessClassId)
+                return "Nameless";
 
-            return "Scavenger";
+            return "Survivor";
         }
 
         public static void LogSelectedClassToGameConsole(string classId)

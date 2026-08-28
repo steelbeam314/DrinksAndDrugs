@@ -16,18 +16,20 @@ namespace DrinksAndDrugs
             LiquidRegistry.Register("distilledtonic", new CustomLiquidInfo
             {
                 name = "Distilled Tonic",
-                description = "Precursor to most chemicals made by the company, smells strangely fruity.",
+                description = "Precursor to most chemicals made by the company, smells strangely fruity. Toxic if swallowed.",
                 color = new Color(0.77f, 0.41f, 0.11f),
 
                 valuePerLiter = 20f,
                 unobtainable = true,
                 injectable = true,
                 injectionSickness = 0.2f,
+                onDrink = (ml, body) => ApplyDistilledTonicDrink(body, ml),
                 onInject = (ml, limb) =>
                 {
                     // 100 ml is treated as one full syringe.
                     float dose = ml * 0.01f;
                     Body body = limb.body;
+                    AxyltallisalStatus.NoteForeignDrug(body);
                     body.happiness += dose * 3f;
                     body.temperature += dose * 0.5f;
                 },
@@ -47,8 +49,8 @@ namespace DrinksAndDrugs
                 unobtainable = true,
                 injectable = true,
                 injectionSickness = 0f,
-                onDrink = (ml, body) => ApplyDeathJuice(body),
-                onInject = (ml, limb) => ApplyDeathJuice(limb.body),
+                onDrink = (ml, body) => ApplyDeathJuice(body, ml),
+                onInject = (ml, limb) => ApplyDeathJuice(limb.body, ml),
                 qualities = new List<CraftingQuality>
                 {
                     CUCoreUtils.CreateCraftingQuality("water", 0.8f)
@@ -79,8 +81,7 @@ namespace DrinksAndDrugs
                 injectable = true,
                 injectionSickness = 0.6f,
                 onDrink = (ml, body) => ApplyBrainfuckDrink(body, ml),
-                onInject = (ml, limb) => ApplyBrainfuck(limb.body, ml),
-                onHealthUse = (ml, limb) => ApplyBrainfuck(limb.body, ml)
+                onInject = (ml, limb) => ApplyBrainfuck(limb.body, ml)
             });
 
             LiquidRegistry.Register("liquidnitrogen", new CustomLiquidInfo
@@ -121,7 +122,38 @@ namespace DrinksAndDrugs
                 }
             });
 
-            Logger.LogInfo("Registered liquids: Distilled Tonic, Death Juice, Stim Fluid, Brainfuck, Liquid Nitrogen, Pickle Juice");
+            LiquidRegistry.Register("peanutbutter", new CustomLiquidInfo
+            {
+                name = "Peanut Butter",
+                description = "Thick, filling paste. Sits heavy in the stomach and is a little nauseating. Fatal to anyone with a peanut allergy.",
+                color = new Color(0.78f, 0.55f, 0.22f),
+
+                valuePerLiter = 10f,
+                unobtainable = true,
+                injectable = false,
+                onDrink = (ml, body) => ApplyPeanutButter(body, ml)
+            });
+
+            LiquidRegistry.Register("axyltallisal", new CustomLiquidInfo
+            {
+                name = "Axyltallisal",
+                description = "A rare red opiate. A 100 mL injection knocks you out; mixing it with other drugs is fatal. Do not swallow.",
+                color = new Color(0.82f, 0.07f, 0.1f),
+
+                valuePerLiter = 90f,
+                unobtainable = false,
+                injectable = true,
+                injectionSickness = 0.15f,
+                onDrink = (ml, body) => ApplyAxyltallisalDrink(body, ml),
+                onHealthUse = (ml, limb) => ApplyAxyltallisalInject(limb != null ? limb.body : null, ml),
+                onInject = (ml, limb) => ApplyAxyltallisalInject(limb != null ? limb.body : null, ml),
+                qualities = new List<CraftingQuality>
+                {
+                    CUCoreUtils.CreateCraftingQuality("opiate", 1f)
+                }
+            });
+
+            Logger.LogInfo("Registered liquids: Distilled Tonic, Death Juice, Stim Fluid, Brainfuck, Liquid Nitrogen, Pickle Juice, Peanut Butter, Axyltallisal");
         }
 
         private void RegisterLiquidContainers()
@@ -131,6 +163,7 @@ namespace DrinksAndDrugs
             Color stim = new Color(0.2f, 0.85f, 0.55f);
             Color brainfuck = new Color(0.72f, 0.18f, 0.55f);
             Color nitrogen = new Color(0.72f, 0.88f, 1f);
+            Color axyltallisal = new Color(0.82f, 0.07f, 0.1f);
 
             RegisterDrinkBottle(
                 "distilledtonicbottle",
@@ -141,15 +174,6 @@ namespace DrinksAndDrugs
                 value: 5,
                 dropPool: DropPool.MedicalCrate | DropPool.AllTraders,
                 iconFile: "tonic_bottle.png");
-
-            RegisterDrinkBottle(
-                "deathjuicebottle",
-                "Death Juice bottle",
-                "A dark bottle that smells better than it should.",
-                "deathjuice",
-                deathJuice,
-                value: 8,
-                dropPool: DropPool.MedicalCrate | DropPool.Corpse);
 
             RegisterDrinkBottle(
                 "brainfuckbottle",
@@ -172,15 +196,6 @@ namespace DrinksAndDrugs
                 iconFile: "liquid_nitrogen_bottle.png");
 
             RegisterSyringe(
-                "distilledtonicsyringe",
-                "Distilled Tonic syringe",
-                "A prefilled syringe of oddly sweet lab tonic.",
-                "distilledtonic",
-                tonic,
-                value: 6,
-                dropPool: DropPool.MedicalCrate | DropPool.AllTraders);
-
-            RegisterSyringe(
                 "deathjuicesyringe",
                 "Death Juice syringe",
                 "A prefilled syringe of something you probably should not inject.",
@@ -201,13 +216,14 @@ namespace DrinksAndDrugs
                 iconFile: "war_stim.png");
 
             RegisterSyringe(
-                "brainfucksyringe",
-                "Brainfuck syringe",
-                "A neutralization syringe. A full 100 mL dose starts the brain drain.",
-                "brainfuck",
-                brainfuck,
-                value: 9,
-                dropPool: DropPool.MedicalCrate | DropPool.Corpse);
+                "axyltallisalsyringe",
+                "Axyltallisal syringe",
+                "A prefilled syringe of a rare red opiate. One full syringe is a complete dose.",
+                "axyltallisal",
+                axyltallisal,
+                value: 18,
+                dropPool: DropPool.MedicalCrate | DropPool.Corpse,
+                iconFile: "axyltallisal_syringe.png");
 
             Logger.LogInfo("Registered liquid containers: bottles and syringes");
         }
@@ -218,7 +234,7 @@ namespace DrinksAndDrugs
             Sprite brineJarIcon = LoadAssetSprite("pickle_jar.png");
             Sprite picklesIcon = LoadAssetSprite("pickle.png");
 
-            Sprite jarLiquidMask = ItemIcons.JarMaskAsset();
+            Sprite jarLiquidMask = ItemIcons.JarMaskMatching(brineJarIcon);
 
             ItemRegistry.Register(
                 "picklejar",
@@ -338,6 +354,50 @@ namespace DrinksAndDrugs
             Logger.LogInfo("Registered pickle jar, pickles, and pickle extraction recipe");
         }
 
+        private void RegisterPeanutItems()
+        {
+            Sprite peanutJarIcon = LoadAssetSprite("peanut_jar.png");
+            Sprite jarLiquidMask = ItemIcons.JarMaskMatching(peanutJarIcon);
+
+            ItemRegistry.Register(
+                "peanutjar",
+                new CustomItemInfo
+                {
+                    fullName = "Peanut Butter Jar",
+                    description = "A glass jar packed with peanut butter.",
+                    category = "food",
+                    slotRotation = -20f,
+                    tags = "cangetwet",
+                    usable = true,
+                    usableOnLimb = false,
+                    destroyAtZeroCondition = false,
+                    combineable = true,
+                    weight = 1.8f,
+                    scaleWeightWithCondition = true,
+                    capacity = 400f,
+                    autoFill = false,
+                    LiquidMask = jarLiquidMask,
+                    defaultContents = new List<LiquidStack>
+                    {
+                        new LiquidStack("peanutbutter", 400f)
+                    },
+                    useAction = (body, item) =>
+                    {
+                        WaterContainerItem container = item.GetComponent<WaterContainerItem>();
+                        if (container != null)
+                            container.Drink(body);
+                    },
+                    value = 6,
+                    rec = new Recognition(2),
+                    DropPool = DropPool.FoodCrate | DropPool.AllTraders,
+                    SpawnFrequency = 1,
+                    SpriteScaleDimensions = (14f, 14f, true)
+                },
+                peanutJarIcon);
+
+            Logger.LogInfo("Registered peanut butter jar");
+        }
+
         private static void RegisterDrinkBottle(
             string id,
             string name,
@@ -417,6 +477,11 @@ namespace DrinksAndDrugs
                 weight = 0.25f,
                 value = value,
                 rec = new Recognition(5),
+                capacity = 100f,
+                defaultContents = new List<LiquidStack>
+                {
+                    new LiquidStack(liquidId, 100f)
+                },
                 Syringe = new SyringeProperties
                 {
                     Capacity = 100f,
@@ -457,15 +522,126 @@ namespace DrinksAndDrugs
         }
 
         /// <summary>
+        /// Peanut butter is dense food: very filling, packs on weight, and is a little sickening.
+        /// Failures are allergic and go into anaphylaxis.
+        /// </summary>
+        private static void ApplyPeanutButter(Body body, float ml)
+        {
+            if (body == null || ml <= 0f)
+                return;
+
+            float dose = ml * 0.01f;
+            body.Eat(dose * 18f, dose * 1.25f);
+            body.sicknessAmount = Mathf.Min(100f, body.sicknessAmount + dose * 8f);
+
+            if (PlayerClasses.IsFailure(body))
+                body.GetStatus<PeanutAllergyStatus>().Trigger(dose);
+        }
+
+        /// <summary>
+        /// Swallowing Axyltallisal stops the heart and destroys the brain.
+        /// </summary>
+        internal static void ApplyAxyltallisalDrink(Body body, float ml)
+        {
+            if (body == null || ml <= 0f)
+                return;
+
+            AxyltallisalStatus.KillByCardiacArrest(body);
+        }
+
+        /// <summary>
+        /// 100 mL knocks the body out for 90 seconds. 105 mL is an overdose.
+        /// Mixing with any other drug during the knockout is fatal.
+        /// The syringe minigame calls Inject every frame, so a just-emptied
+        /// 100 mL syringe is counted as one full dose even if callbacks were split.
+        /// </summary>
+        internal static void ApplyAxyltallisalInject(Body body, float ml)
+        {
+            if (body == null || ml <= 0f)
+                return;
+
+            AxyltallisalStatus status = body.GetStatus<AxyltallisalStatus>();
+            if (status.Resolved && !status.Dying && !status.KnockedOut)
+            {
+                status.Resolved = false;
+                status.Fatal = false;
+                status.AbsorbedMl = 0f;
+            }
+
+            status.AbsorbedMl += ml;
+
+            float overdoseMl = PlayerClasses.ScaleOverdoseThreshold(body, AxyltallisalStatus.OverdoseMilliliters);
+            bool pastGrace = status.KnockedOut && status.Elapsed >= AxyltallisalStatus.SamePlungeGraceSeconds;
+            if (status.AbsorbedMl >= overdoseMl && pastGrace)
+                status.Fatal = true;
+
+            if (status.Dying)
+                return;
+
+            if (status.KnockedOut)
+            {
+                if (pastGrace)
+                    status.Fatal = true;
+                if (AxyltallisalStatus.HasOtherDrugs(body))
+                    status.Fatal = true;
+                status.ApplyToBody(body);
+                return;
+            }
+
+            if (status.AbsorbedMl < AxyltallisalStatus.DoseMilliliters)
+                return;
+
+            status.BeginKnockout(body);
+        }
+
+        /// <summary>
+        /// Distilled Tonic hydrates and warms, but it is poisonous for everyone except the Failure.
+        /// Failures drink it safely and gain a small immunity boost.
+        /// </summary>
+        private static void ApplyDistilledTonicDrink(Body body, float ml)
+        {
+            if (body == null || ml <= 0f)
+                return;
+
+            float dose = ml * 0.01f;
+            body.Drink(dose * 8f);
+            body.temperature += dose * 0.5f;
+
+            AxyltallisalStatus.NoteForeignDrug(body);
+
+            if (PlayerClasses.IsFailure(body))
+            {
+                body.happiness += dose * 3f;
+                body.immunity = Mathf.Min(200f, body.immunity + dose * 8f);
+                return;
+            }
+
+            body.happiness -= dose * 4f;
+            body.sicknessAmount = Mathf.Min(100f, body.sicknessAmount + dose * 22f);
+        }
+
+        /// <summary>
         /// Instantly clears physical injuries, cancels any active fever,
         /// cools toward 29C over 30s, then starts the delayed fever.
+        /// Requires 100 mL total; partial uses add up until a full dose is reached.
         /// </summary>
-        private static void ApplyDeathJuice(Body body)
+        private static void ApplyDeathJuice(Body body, float ml)
         {
-            HealPhysicalInjuries(body);
+            if (body == null || ml <= 0f)
+                return;
+
+            AxyltallisalStatus.NoteForeignDrug(body);
 
             DeathJuiceStatus status = body.GetStatus<DeathJuiceStatus>();
+            status.AbsorbedMl += ml;
+            if (status.AbsorbedMl < 100f)
+                return;
+
+            status.AbsorbedMl -= 100f;
+            HealPhysicalInjuries(body);
+
             status.FeverActive = false;
+            status.FeverElapsed = 0f;
             status.CoolingActive = true;
             status.CoolingElapsed = 0f;
             status.CoolingStartTemperature = body.temperature;
@@ -483,6 +659,8 @@ namespace DrinksAndDrugs
             if (ml <= 0f)
                 return;
 
+            AxyltallisalStatus.NoteForeignDrug(body);
+
             float dose = ml * 0.01f;
             body.sicknessAmount = Mathf.Min(100f, body.sicknessAmount + dose * 40f);
         }
@@ -493,15 +671,17 @@ namespace DrinksAndDrugs
         /// </summary>
         private static void ApplyBrainfuck(Body body, float ml)
         {
-            if (ml <= 0f)
+            if (body == null || ml <= 0f)
                 return;
+
+            AxyltallisalStatus.NoteForeignDrug(body);
 
             BrainfuckStatus status = body.GetStatus<BrainfuckStatus>();
             status.AbsorbedMl += ml;
             if (status.AbsorbedMl < 100f)
                 return;
 
-            status.AbsorbedMl = 0f;
+            status.AbsorbedMl -= 100f;
             body.happiness -= 10f;
             status.Draining = true;
             status.Elapsed = 0f;
@@ -513,13 +693,21 @@ namespace DrinksAndDrugs
         /// <summary>
         /// Fully heals the injected limb, then heals adjacent tissue and stops nearby bleeding
         /// without resetting neighboring fractures or dislocations.
-        /// Requires a full 100 mL dose; smaller injections do nothing.
+        /// Requires 100 mL total; partial injections add up until a full dose is reached.
         /// </summary>
         private static void ApplyStimFluid(Limb limb, float ml)
         {
-            if (ml < 100f)
+            if (limb == null || limb.body == null || ml <= 0f)
                 return;
 
+            AxyltallisalStatus.NoteForeignDrug(limb.body);
+
+            StimFluidStatus status = limb.body.GetStatus<StimFluidStatus>();
+            status.AbsorbedMl += ml;
+            if (status.AbsorbedMl < 100f)
+                return;
+
+            status.AbsorbedMl -= 100f;
             HealLimbCompletely(limb);
 
             if (limb.connectedLimbs != null)
@@ -538,6 +726,9 @@ namespace DrinksAndDrugs
 
         private static void HealLimbCompletely(Limb limb)
         {
+            if (limb == null)
+                return;
+
             limb.muscleHealth = 100f;
             limb.skinHealth = 100f;
             limb.boneHealTimer = 0f;
@@ -554,6 +745,9 @@ namespace DrinksAndDrugs
 
         private static void HealAdjacentLimbTissue(Limb limb)
         {
+            if (limb == null)
+                return;
+
             limb.muscleHealth = 100f;
             limb.skinHealth = 100f;
             limb.infectionAmount = 0f;
@@ -567,10 +761,16 @@ namespace DrinksAndDrugs
         /// <summary>
         /// Restores limb/body trauma without wiping hunger, thirst, mood, or temperature.
         /// </summary>
-        private static void HealPhysicalInjuries(Body body)
+        internal static void HealPhysicalInjuries(Body body)
         {
+            if (body == null || body.limbs == null)
+                return;
+
             foreach (Limb limb in body.limbs)
             {
+                if (limb == null)
+                    continue;
+
                 limb.muscleHealth = 100f;
                 limb.skinHealth = 100f;
                 limb.boneHealTimer = 0f;

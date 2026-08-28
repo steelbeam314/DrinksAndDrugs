@@ -37,7 +37,41 @@ namespace DrinksAndDrugs
             return CreateSprite(DrawJarMaskAsset(), JarWidth, JarHeight);
         }
 
+        /// <summary>
+        /// Full-sprite fill mask. Juice is drawn behind the jar so the label stays on top.
+        /// </summary>
+        public static Sprite JarMaskMatching(Sprite jarSprite)
+        {
+            if (jarSprite == null)
+                return JarMaskAsset();
+
+            int width = Mathf.Max(1, Mathf.RoundToInt(jarSprite.rect.width));
+            int height = Mathf.Max(1, Mathf.RoundToInt(jarSprite.rect.height));
+            Color32[] pixels = ClearPixels(width, height);
+            Color32 mask = new Color32(255, 255, 255, 255);
+            for (int i = 0; i < pixels.Length; i++)
+                pixels[i] = mask;
+
+            Vector2 pivot = new Vector2(0.5f, 0.5f);
+            if (jarSprite.rect.width > 0f && jarSprite.rect.height > 0f)
+                pivot = new Vector2(
+                    jarSprite.pivot.x / jarSprite.rect.width,
+                    jarSprite.pivot.y / jarSprite.rect.height);
+
+            return CreateSprite(pixels, width, height, jarSprite.pixelsPerUnit, pivot);
+        }
+
         private static Sprite CreateSprite(Color32[] pixels, int width, int height)
+        {
+            return CreateSprite(pixels, width, height, PixelsPerUnit, new Vector2(0.5f, 0.5f));
+        }
+
+        private static Sprite CreateSprite(
+            Color32[] pixels,
+            int width,
+            int height,
+            float pixelsPerUnit,
+            Vector2 pivot)
         {
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
             {
@@ -50,8 +84,8 @@ namespace DrinksAndDrugs
             return Sprite.Create(
                 texture,
                 new Rect(0f, 0f, width, height),
-                new Vector2(0.5f, 0.5f),
-                PixelsPerUnit);
+                pivot,
+                pixelsPerUnit);
         }
 
         private static Color32[] DrawBottle(Color liquid)
@@ -106,11 +140,10 @@ namespace DrinksAndDrugs
 
         private static Color32[] DrawJarMaskAsset()
         {
-            // Only the hollow interior — keep glass rim / label pixels outside the mask
-            // so LiquidFill does not paint over them.
+            // Full sprite — fill is drawn behind the jar, so opaque label/lid hide it.
             Color32[] pixels = ClearPixels(JarWidth, JarHeight);
             Color32 mask = new Color32(255, 255, 255, 255);
-            FillRect(pixels, JarWidth, 0, 5, 6, 4, mask);
+            FillRect(pixels, JarWidth, 0, 0, JarWidth, JarHeight, mask);
             return pixels;
         }
 
@@ -152,7 +185,11 @@ namespace DrinksAndDrugs
             if (x < 0 || y < 0 || x >= stride)
                 return;
 
-            pixels[y * stride + x] = color;
+            int index = y * stride + x;
+            if (index >= pixels.Length)
+                return;
+
+            pixels[index] = color;
         }
 
         private static Color32 ToColor32(Color color, byte alpha)
