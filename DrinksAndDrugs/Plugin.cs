@@ -18,6 +18,7 @@ namespace DrinksAndDrugs
         public const string DrugTesterClassId = "drugtester";
         public const string FailureClassId = "failure";
         public const string NamelessClassId = "nameless";
+        public const string CannibalClassId = "cannibal";
         public static string SelectedClassId = DefaultClassId;
 
         internal static new ManualLogSource Logger;

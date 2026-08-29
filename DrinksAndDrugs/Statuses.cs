@@ -103,6 +103,17 @@ namespace DrinksAndDrugs
         public float ShakePainBackup;
     }
 
+    [StatusOptions(Key = "modnamespace.cannibal", SaveEnabled = true)]
+    public sealed class CannibalStatus : BodyStatus
+    {
+        public float LastAveragePain;
+        public float[] LastLimbPain;
+        public float ShakePainBackup;
+        public float LastStamina;
+        public bool StaminaInitialized;
+        public bool PainInitialized;
+    }
+
     [StatusOptions(Key = "modnamespace.peanutallergy", SaveEnabled = true)]
     public sealed class PeanutAllergyStatus : BodyStatus
     {

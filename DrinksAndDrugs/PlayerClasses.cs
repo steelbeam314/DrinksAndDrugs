@@ -14,6 +14,14 @@ namespace DrinksAndDrugs
         private const float EmptyPickleJarHappiness = -1.25f;
         private const float NamelessPainRiseRate = 0.4f;
         private const float NamelessPainShakeScale = 0.5f;
+        private const float CannibalPainRiseRate = 1.4f;
+        private const float CannibalPainMax = 125f;
+        private const float CannibalPainShakeScale = 0.35f;
+        private const float CannibalHungerRateScale = 1.2f;
+        private const float CannibalStaminaScale = 2f;
+        private const float CannibalAnimalFleshMood = 3f;
+        private const float CannibalYellowFleshMood = 6f;
+        private const float VanillaPainCap = 100f;
         private const float NamelessOverfullFillScale = 0.4f;
         private const float NamelessVenomGainScale = 1.75f;
         private const float FullnessThreshold = 100f;
@@ -70,6 +78,11 @@ namespace DrinksAndDrugs
         public static bool IsNameless(Body body)
         {
             return body != null && body.GetStatus<PlayerClassStatus>().ClassId == Plugin.NamelessClassId;
+        }
+
+        public static bool IsCannibal(Body body)
+        {
+            return body != null && body.GetStatus<PlayerClassStatus>().ClassId == Plugin.CannibalClassId;
         }
 
         public static bool IsLocalBody(Body body)
@@ -183,6 +196,40 @@ namespace DrinksAndDrugs
             AmplifyVenomGain(body, status);
         }
 
+        public static void ApplyCannibalSimulation(Body body)
+        {
+            if (body == null || !IsCannibal(body))
+                return;
+
+            CannibalStatus status = body.GetStatus<CannibalStatus>();
+            ScaleCannibalPain(body, status);
+            ScaleCannibalStamina(body, status);
+        }
+
+        public static float ScaleHungerRate(Body body, float vanilla)
+        {
+            return IsCannibal(body) ? vanilla * CannibalHungerRateScale : vanilla;
+        }
+
+        public static void ApplyCannibalFleshEat(Body body, string itemId)
+        {
+            if (body == null || !IsCannibal(body) || string.IsNullOrEmpty(itemId))
+                return;
+
+            if (itemId == "animalflesh")
+            {
+                body.sicknessAmount = Mathf.Max(0f, body.sicknessAmount - 4f);
+                body.happiness += 0.75f + CannibalAnimalFleshMood;
+                return;
+            }
+
+            if (itemId == "experimentflesh")
+            {
+                body.sicknessAmount = Mathf.Max(0f, body.sicknessAmount - 16f);
+                body.happiness += 6f + CannibalYellowFleshMood;
+            }
+        }
+
         public static float CompressFullness(float before, float after)
         {
             return CompressAbove(before, after, FullnessThreshold, NamelessOverfullFillScale);
@@ -191,12 +238,21 @@ namespace DrinksAndDrugs
         public static void BeginNamelessPainShake(Body body, out bool scaled)
         {
             scaled = false;
-            if (body == null || !IsNameless(body))
+            if (body == null)
                 return;
 
-            NamelessStatus status = body.GetStatus<NamelessStatus>();
-            status.ShakePainBackup = body.averagePain;
-            body.averagePain *= NamelessPainShakeScale;
+            float scale = GetPainShakeScale(body);
+            if (scale >= 1f)
+                return;
+
+            if (IsNameless(body))
+                body.GetStatus<NamelessStatus>().ShakePainBackup = body.averagePain;
+            else if (IsCannibal(body))
+                body.GetStatus<CannibalStatus>().ShakePainBackup = body.averagePain;
+            else
+                return;
+
+            body.averagePain *= scale;
             scaled = true;
         }
 
@@ -205,7 +261,19 @@ namespace DrinksAndDrugs
             if (!scaled || body == null)
                 return;
 
-            body.averagePain = body.GetStatus<NamelessStatus>().ShakePainBackup;
+            if (IsNameless(body))
+                body.averagePain = body.GetStatus<NamelessStatus>().ShakePainBackup;
+            else if (IsCannibal(body))
+                body.averagePain = body.GetStatus<CannibalStatus>().ShakePainBackup;
+        }
+
+        private static float GetPainShakeScale(Body body)
+        {
+            if (IsNameless(body))
+                return NamelessPainShakeScale;
+            if (IsCannibal(body))
+                return CannibalPainShakeScale;
+            return 1f;
         }
 
         public static IEnumerable<CodeInstruction> ScaleFloatConstants(
@@ -252,12 +320,85 @@ namespace DrinksAndDrugs
                 skills.RES -= 1;
                 skills.INT += 3;
             }
+            else if (classId == Plugin.CannibalClassId)
+            {
+                skills.STR += 1;
+                skills.RES -= 1;
+                skills.INT += 1;
+            }
             else
             {
                 return;
             }
 
             skills.UpdateExpBoundaries();
+        }
+
+        private static void ScaleCannibalPain(Body body, CannibalStatus status)
+        {
+            if (body.limbs != null)
+            {
+                if (status.LastLimbPain == null || status.LastLimbPain.Length != body.limbs.Length)
+                {
+                    status.LastLimbPain = new float[body.limbs.Length];
+                    for (int i = 0; i < body.limbs.Length; i++)
+                    {
+                        if (body.limbs[i] != null)
+                            status.LastLimbPain[i] = body.limbs[i].pain;
+                    }
+                }
+
+                for (int i = 0; i < body.limbs.Length; i++)
+                {
+                    Limb limb = body.limbs[i];
+                    if (limb == null)
+                        continue;
+
+                    limb.pain = NextCannibalPain(limb.pain, status.LastLimbPain[i]);
+                    status.LastLimbPain[i] = limb.pain;
+                }
+            }
+
+            if (!status.PainInitialized)
+            {
+                status.LastAveragePain = body.averagePain;
+                status.PainInitialized = true;
+            }
+            else
+            {
+                body.averagePain = NextCannibalPain(body.averagePain, status.LastAveragePain);
+                status.LastAveragePain = body.averagePain;
+            }
+        }
+
+        private static float NextCannibalPain(float vanilla, float last)
+        {
+            float delta = vanilla - last;
+            float pain;
+            if (last > VanillaPainCap && vanilla >= VanillaPainCap - 0.5f && delta < 0f)
+                pain = last + Time.deltaTime * 8f;
+            else if (delta > 0f)
+                pain = last + delta * CannibalPainRiseRate;
+            else
+                pain = vanilla;
+
+            return Mathf.Clamp(pain, 0f, CannibalPainMax);
+        }
+
+        private static void ScaleCannibalStamina(Body body, CannibalStatus status)
+        {
+            if (!status.StaminaInitialized)
+            {
+                status.LastStamina = body.stamina;
+                status.StaminaInitialized = true;
+                return;
+            }
+
+            float delta = body.stamina - status.LastStamina;
+            if (delta != 0f)
+                body.stamina = Mathf.Clamp(status.LastStamina + delta * CannibalStaminaScale, 0f, 100f);
+
+            status.LastStamina = body.stamina;
         }
 
         private static void SlowPainRise(Body body, NamelessStatus status)

@@ -15,10 +15,11 @@ namespace DrinksAndDrugs
         public const string DrugTesterChoice = "DrugTester";
         public const string FailureChoice = "Failure";
         public const string NamelessChoice = "Nameless";
+        public const string CannibalChoice = "Cannibal";
         public const string SetClassCommandName = "setclass";
 
-        public static readonly string[] Choices = { SurvivorChoice, DrugTesterChoice, FailureChoice, NamelessChoice };
-        public static readonly string[] ClassIds = { Plugin.SurvivorClassId, Plugin.DrugTesterClassId, Plugin.FailureClassId, Plugin.NamelessClassId };
+        public static readonly string[] Choices = { SurvivorChoice, DrugTesterChoice, FailureChoice, NamelessChoice, CannibalChoice };
+        public static readonly string[] ClassIds = { Plugin.SurvivorClassId, Plugin.DrugTesterClassId, Plugin.FailureClassId, Plugin.NamelessClassId, Plugin.CannibalClassId };
 
         public static bool IsMultiplayerEnabled()
         {
@@ -44,6 +45,7 @@ namespace DrinksAndDrugs
             LocaleRegistry.Get("other", "runsetclassDrugTester", "Drug Tester");
             LocaleRegistry.Get("other", "runsetclassFailure", "Failure");
             LocaleRegistry.Get("other", "runsetclassNameless", "Nameless");
+            LocaleRegistry.Get("other", "runsetclassCannibal", "Cannibal");
 
             if (RunSettings.settingTypes == null)
                 return;
@@ -96,7 +98,7 @@ namespace DrinksAndDrugs
 
             Dictionary<int, List<string>> autofill = new Dictionary<int, List<string>>
             {
-                { 0, new List<string> { "survivor", "drugtester", "failure", "nameless" } }
+                { 0, new List<string> { "survivor", "drugtester", "failure", "nameless", "cannibal" } }
             };
 
             ConsoleCommandRegistry.Register(new Command(
@@ -106,7 +108,7 @@ namespace DrinksAndDrugs
                 autofill,
                 new (string, string)[]
                 {
-                    ("string name", "Class name: survivor, drugtester, failure, or nameless")
+                    ("string name", "Class name: survivor, drugtester, failure, nameless, or cannibal")
                 }));
 
             _consoleCommandRegistered = true;
@@ -121,7 +123,7 @@ namespace DrinksAndDrugs
             if (args == null || args.Length < 2 || string.IsNullOrWhiteSpace(args[1]))
             {
                 console.LogToConsole("Current class: " + DisplayName(Plugin.SelectedClassId));
-                console.LogToConsole("Usage: setclass <survivor|drugtester|failure|nameless>");
+                console.LogToConsole("Usage: setclass <survivor|drugtester|failure|nameless|cannibal>");
                 return;
             }
 
@@ -149,7 +151,7 @@ namespace DrinksAndDrugs
             string classId = ResolveClassId(raw);
             if (classId == null)
             {
-                error = "Unknown class. Use: survivor, drugtester, failure, nameless";
+                error = "Unknown class. Use: survivor, drugtester, failure, nameless, cannibal";
                 return false;
             }
 
@@ -172,6 +174,8 @@ namespace DrinksAndDrugs
                 return Plugin.FailureClassId;
             if (key == "nameless" || key == "name" || key == "nl")
                 return Plugin.NamelessClassId;
+            if (key == "cannibal" || key == "canni" || key == "meat")
+                return Plugin.CannibalClassId;
 
             return null;
         }
@@ -324,6 +328,8 @@ namespace DrinksAndDrugs
                 return "Failure";
             if (classId == Plugin.NamelessClassId)
                 return "Nameless";
+            if (classId == Plugin.CannibalClassId)
+                return "Cannibal";
 
             return "Survivor";
         }

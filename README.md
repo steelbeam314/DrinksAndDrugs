@@ -1,21 +1,22 @@
 # Drinks and Drugs
 
-A Casualties Unknown mod that adds custom liquids, drink/syringe items, status effects, and a Scavenger / Drug Tester class choice.
+A Casualties Unknown mod that adds custom liquids, drink/syringe items, status effects, and character classes.
 
 Requires [CUCoreLib](https://cucorelib.web.app/) and BepInEx.
 
 ## Install
 
 1. Install BepInEx and CUCoreLib.
-2. Download [`plugin/DrinksAndDrugs.dll`](plugin/DrinksAndDrugs.dll).
-3. Copy it to `Casualties Unknown Demo/BepInEx/plugins/DrinksAndDrugs/`.
+2. Download the real [`plugin/DrinksAndDrugs.dll`](https://github.com/steelbeam314/DrinksAndDrugs/raw/main/plugin/DrinksAndDrugs.dll) (use that raw link, not the GitHub file page). It should be tens of KB, not a few KB HTML download.
+3. Copy it to `Casualties Unknown Demo/BepInEx/plugins/DrinksAndDrugs/DrinksAndDrugs.dll`.
+4. After launch, `BepInEx/LogOutput.log` should contain `Plugin DrinksAndDrugs is loaded!`
 
 ## Features
 
-- **Liquids:** Distilled Tonic, Death Juice, Stim Fluid, Brainfuck, and Liquid Nitrogen
-- **Items:** prefilled bottles (500 mL) and syringes (100 mL)
-- **Statuses and moodles:** Death Juice cooling/fever, Brainfuck brain drain
-- **Classes:** Scavenger (default) or Drug Tester, chosen on the pre-run screen (`setclass` in multiplayer)
+- **Liquids:** Distilled Tonic, Death Juice, Stim Fluid, Brainfuck, Liquid Nitrogen, pickle brine, peanut butter, and Axyltallisal
+- **Items:** prefilled bottles/jars and syringes
+- **Statuses and moodles:** Death Juice cooling/fever, Brainfuck brain drain, Failure peanut allergy, Axyltallisal knockout
+- **Classes:** Survivor, Drug Tester, Failure, Nameless, or Cannibal, chosen on the pre-run screen (`setclass` in multiplayer)
 
 Drug Testers cannot start syringe injections and have doubled overdose thresholds.
 

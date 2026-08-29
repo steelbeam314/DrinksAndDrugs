@@ -3,6 +3,7 @@ using CUCoreLib.Registries;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 namespace DrinksAndDrugs
@@ -264,6 +265,7 @@ namespace DrinksAndDrugs
             {
                 ApplyForcedVitals(__instance);
                 PlayerClasses.ApplyNamelessSimulation(__instance);
+                PlayerClasses.ApplyCannibalSimulation(__instance);
             }
         }
 
@@ -647,6 +649,68 @@ namespace DrinksAndDrugs
                 }
 
                 return false;
+            }
+        }
+
+        [HarmonyPatch(typeof(Body), "get_BaseHungerRate")]
+        internal static class CannibalHungerRatePatch
+        {
+            [HarmonyPostfix]
+            private static void Postfix(Body __instance, ref float __result)
+            {
+                __result = PlayerClasses.ScaleHungerRate(__instance, __result);
+            }
+        }
+
+        [HarmonyPatch]
+        internal static class CannibalYellowFleshPatch
+        {
+            private static MethodBase TargetMethod()
+            {
+                Type nested = typeof(Item).GetNestedType("<>c", BindingFlags.NonPublic);
+                return AccessTools.Method(nested, "<SetupItems>b__40_192");
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix(Body __0)
+            {
+                PlayerClasses.ApplyCannibalFleshEat(__0, "experimentflesh");
+            }
+        }
+
+        [HarmonyPatch]
+        internal static class CannibalAnimalFleshPatch
+        {
+            private static MethodBase TargetMethod()
+            {
+                Type nested = typeof(Item).GetNestedType("<>c", BindingFlags.NonPublic);
+                return AccessTools.Method(nested, "<SetupItems>b__40_193");
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix(Body __0)
+            {
+                PlayerClasses.ApplyCannibalFleshEat(__0, "animalflesh");
+            }
+        }
+
+        [HarmonyPatch(typeof(Talker), nameof(Talker.EatBad))]
+        internal static class CannibalSkipEatBadPatch
+        {
+            [HarmonyPrefix]
+            private static bool Prefix(Talker __instance)
+            {
+                return __instance == null || !PlayerClasses.IsCannibal(__instance.body);
+            }
+        }
+
+        [HarmonyPatch(typeof(Talker), nameof(Talker.EatMediocre))]
+        internal static class CannibalSkipEatMediocrePatch
+        {
+            [HarmonyPrefix]
+            private static bool Prefix(Talker __instance)
+            {
+                return __instance == null || !PlayerClasses.IsCannibal(__instance.body);
             }
         }
     }
