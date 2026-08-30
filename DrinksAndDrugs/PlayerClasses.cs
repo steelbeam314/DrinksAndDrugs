@@ -57,31 +57,52 @@ namespace DrinksAndDrugs
 
         public static void AssignLocalClassIfNeeded(Body body)
         {
-            if (body == null || !IsLocalBody(body))
+            if (body == null)
                 return;
 
+            if (IsLocalBody(body))
+            {
+                if (!ClassSelection.IsMultiplayerEnabled())
+                    ClassSelection.RefreshSelectedClassFromRunSettings();
+
+                ApplyClass(body, Plugin.SelectedClassId);
+                return;
+            }
+
+            if (ClassNetwork.TryGetClassForBody(body, out string classId))
+                ApplyClass(body, classId);
+        }
+
+        public static void ApplyClass(Body body, string classId)
+        {
+            if (body == null)
+                return;
+
+            classId = NormalizeClassId(classId);
             PlayerClassStatus status = body.GetStatus<PlayerClassStatus>();
             status.ClassId = NormalizeClassId(status.ClassId);
 
-            if (status.Assigned)
+            if (status.Assigned && status.ClassId == classId)
             {
                 if (!status.StatsApplied)
                 {
-                    ApplyStartingStats(body, status.ClassId);
+                    ApplyStartingStats(body, classId);
                     status.StatsApplied = true;
                 }
 
                 return;
             }
 
-            if (!ClassSelection.IsMultiplayerEnabled())
-                ClassSelection.RefreshSelectedClassFromRunSettings();
+            status.ClassId = classId;
+            if (!status.StatsApplied)
+            {
+                ApplyStartingStats(body, classId);
+                status.StatsApplied = true;
+            }
 
-            status.ClassId = NormalizeClassId(Plugin.SelectedClassId);
-            ApplyStartingStats(body, status.ClassId);
-            status.StatsApplied = true;
             status.Assigned = true;
-            EnableCorpseMining();
+            if (classId == Plugin.CannibalClassId)
+                EnableCorpseMining();
         }
 
         public static string NormalizeClassId(string classId)
@@ -113,6 +134,19 @@ namespace DrinksAndDrugs
         public static bool IsCannibal(Body body)
         {
             return body != null && body.GetStatus<PlayerClassStatus>().ClassId == Plugin.CannibalClassId;
+        }
+
+        public static string GetClassId(Body body)
+        {
+            if (body == null)
+                return NormalizeClassId(Plugin.SelectedClassId);
+
+            return NormalizeClassId(body.GetStatus<PlayerClassStatus>().ClassId);
+        }
+
+        public static string GetClassDisplayName(Body body)
+        {
+            return ClassSelection.DisplayName(GetClassId(body));
         }
 
         public static bool IsLocalBody(Body body)
@@ -154,7 +188,7 @@ namespace DrinksAndDrugs
 
         public static void TickFailureEffects(Body body)
         {
-            if (body == null || !IsLocalBody(body))
+            if (body == null)
                 return;
 
             PlayerClassStatus status = body.GetStatus<PlayerClassStatus>();
@@ -410,9 +444,24 @@ namespace DrinksAndDrugs
             body.eyeScareTime = 0f;
         }
 
+        public static bool ShouldAllowCorpseMining()
+        {
+            if (IsCannibal(LocalBody()))
+                return true;
+
+            Body[] bodies = Object.FindObjectsOfType<Body>();
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                if (IsCannibal(bodies[i]))
+                    return true;
+            }
+
+            return false;
+        }
+
         public static void EnableCorpseMining()
         {
-            if (!IsCannibal(LocalBody()))
+            if (!ShouldAllowCorpseMining())
                 return;
 
             CorpseScript[] corpses = Object.FindObjectsOfType<CorpseScript>();

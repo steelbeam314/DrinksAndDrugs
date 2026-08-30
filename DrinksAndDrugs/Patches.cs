@@ -822,7 +822,7 @@ namespace DrinksAndDrugs
             [HarmonyPostfix]
             private static void Postfix(CorpseScript __instance)
             {
-                if (PlayerClasses.IsCannibal(PlayerClasses.LocalBody()))
+                if (PlayerClasses.ShouldAllowCorpseMining())
                     PlayerClasses.AllowCorpseMining(__instance);
             }
         }
@@ -880,6 +880,39 @@ namespace DrinksAndDrugs
             {
                 return __instance == null || !PlayerClasses.IsCannibal(__instance.body);
             }
+        }
+
+        [HarmonyPatch(typeof(WoundView), nameof(WoundView.Start))]
+        internal static class WoundViewClassNameStartPatch
+        {
+            [HarmonyPostfix]
+            private static void Postfix(WoundView __instance)
+            {
+                ApplyClassName(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(WoundView), nameof(WoundView.UpdateView))]
+        internal static class WoundViewClassNamePatch
+        {
+            [HarmonyPostfix]
+            [HarmonyPriority(Priority.Last)]
+            private static void Postfix(WoundView __instance)
+            {
+                ApplyClassName(__instance);
+            }
+        }
+
+        private static void ApplyClassName(WoundView view)
+        {
+            if (view == null || view.nameText == null)
+                return;
+
+            Body body = view.body != null ? view.body : PlayerClasses.LocalBody();
+            if (PlayerClasses.GetClassId(body) == Plugin.SurvivorClassId)
+                return;
+
+            view.nameText.text = PlayerClasses.GetClassDisplayName(body).ToUpperInvariant();
         }
     }
 }

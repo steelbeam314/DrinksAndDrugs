@@ -36,6 +36,7 @@ namespace DrinksAndDrugs
             RegisterPeanutItems();
             ClassSelection.EnsureRegistered();
             ClassSelection.RegisterConsoleCommand();
+            ClassNetwork.Register();
 
             try
             {
@@ -47,6 +48,11 @@ namespace DrinksAndDrugs
             }
 
             Logger.LogInfo($"Plugin {ModName} is loaded!");
+        }
+
+        void Update()
+        {
+            ClassNetwork.Tick();
         }
 
         void OnDestroy()
