@@ -38,19 +38,74 @@ namespace DrinksAndDrugs
         }
 
         /// <summary>
-        /// Full-sprite fill mask. Juice is drawn behind the jar so the label stays on top.
+        /// Tight crop of a jar sprite so empty padding is not part of inventory sizing.
         /// </summary>
-        public static Sprite JarMaskMatching(Sprite jarSprite)
+        public static Sprite CropToOpaque(Sprite jarSprite)
+        {
+            if (jarSprite == null)
+                return null;
+
+            int width = Mathf.Max(1, Mathf.RoundToInt(jarSprite.rect.width));
+            int height = Mathf.Max(1, Mathf.RoundToInt(jarSprite.rect.height));
+            int minX = 0;
+            int minY = 0;
+            int maxX = width - 1;
+            int maxY = height - 1;
+            if (!TryOpaqueBounds(jarSprite, width, height, ref minX, ref minY, ref maxX, ref maxY))
+                return jarSprite;
+
+            int cropWidth = maxX - minX + 1;
+            int cropHeight = maxY - minY + 1;
+            if (cropWidth == width && cropHeight == height)
+                return jarSprite;
+
+            Color[] source = ReadSpritePixels(jarSprite, width, height);
+            Color32[] pixels = ClearPixels(cropWidth, cropHeight);
+            if (source != null)
+            {
+                for (int y = 0; y < cropHeight; y++)
+                {
+                    for (int x = 0; x < cropWidth; x++)
+                        pixels[y * cropWidth + x] = source[(minY + y) * width + (minX + x)];
+                }
+            }
+
+            return CreateSprite(pixels, cropWidth, cropHeight, jarSprite.pixelsPerUnit, new Vector2(0.5f, 0.5f));
+        }
+
+        /// <summary>
+        /// Fill mask matching the jar sprite. Only the opaque jar body is filled so
+        /// empty padding does not leak. Inset keeps a glass rim so world walls are
+        /// not covered by the fill sitting behind the sprite.
+        /// </summary>
+        public static Sprite JarMaskMatching(Sprite jarSprite, int insetX = 0, int insetBottom = 0, int insetTop = 0)
         {
             if (jarSprite == null)
                 return JarMaskAsset();
 
             int width = Mathf.Max(1, Mathf.RoundToInt(jarSprite.rect.width));
             int height = Mathf.Max(1, Mathf.RoundToInt(jarSprite.rect.height));
+            int minX = 0;
+            int minY = 0;
+            int maxX = width - 1;
+            int maxY = height - 1;
+            TryOpaqueBounds(jarSprite, width, height, ref minX, ref minY, ref maxX, ref maxY);
+
+            minX += Mathf.Max(0, insetX);
+            maxX -= Mathf.Max(0, insetX);
+            minY += Mathf.Max(0, insetBottom);
+            maxY -= Mathf.Max(0, insetTop);
+            if (minX > maxX || minY > maxY)
+            {
+                minX = 0;
+                minY = 0;
+                maxX = width - 1;
+                maxY = height - 1;
+            }
+
             Color32[] pixels = ClearPixels(width, height);
             Color32 mask = new Color32(255, 255, 255, 255);
-            for (int i = 0; i < pixels.Length; i++)
-                pixels[i] = mask;
+            FillRect(pixels, width, minX, minY, maxX - minX + 1, maxY - minY + 1, mask);
 
             Vector2 pivot = new Vector2(0.5f, 0.5f);
             if (jarSprite.rect.width > 0f && jarSprite.rect.height > 0f)
@@ -59,6 +114,63 @@ namespace DrinksAndDrugs
                     jarSprite.pivot.y / jarSprite.rect.height);
 
             return CreateSprite(pixels, width, height, jarSprite.pixelsPerUnit, pivot);
+        }
+
+        private static bool TryOpaqueBounds(
+            Sprite jarSprite,
+            int width,
+            int height,
+            ref int minX,
+            ref int minY,
+            ref int maxX,
+            ref int maxY)
+        {
+            Color[] source = ReadSpritePixels(jarSprite, width, height);
+            if (source == null)
+                return false;
+
+            int foundMinX = width;
+            int foundMinY = height;
+            int foundMaxX = -1;
+            int foundMaxY = -1;
+            for (int i = 0; i < source.Length; i++)
+            {
+                if (source[i].a <= 0.01f)
+                    continue;
+
+                int x = i % width;
+                int y = i / width;
+                if (x < foundMinX)
+                    foundMinX = x;
+                if (x > foundMaxX)
+                    foundMaxX = x;
+                if (y < foundMinY)
+                    foundMinY = y;
+                if (y > foundMaxY)
+                    foundMaxY = y;
+            }
+
+            if (foundMaxX < foundMinX)
+                return false;
+
+            minX = foundMinX;
+            minY = foundMinY;
+            maxX = foundMaxX;
+            maxY = foundMaxY;
+            return true;
+        }
+
+        private static Color[] ReadSpritePixels(Sprite jarSprite, int width, int height)
+        {
+            Texture2D texture = jarSprite != null ? jarSprite.texture : null;
+            if (texture == null || !texture.isReadable)
+                return null;
+
+            return texture.GetPixels(
+                Mathf.RoundToInt(jarSprite.rect.x),
+                Mathf.RoundToInt(jarSprite.rect.y),
+                width,
+                height);
         }
 
         private static Sprite CreateSprite(Color32[] pixels, int width, int height)

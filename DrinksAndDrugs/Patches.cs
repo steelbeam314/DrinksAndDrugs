@@ -662,6 +662,37 @@ namespace DrinksAndDrugs
             }
         }
 
+        [HarmonyPatch(typeof(Body), nameof(Body.Eat))]
+        internal static class CannibalEatHungerPatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(Body __instance, ref float hungerAmount)
+            {
+                Item item = CannibalItemUsePatch.CurrentItem;
+                if (item == null && __instance != null && __instance.HoldingItem(__instance.handSlot))
+                    item = __instance.GetItem(__instance.handSlot);
+
+                PlayerClasses.BeginCannibalEat(__instance, item);
+                PlayerClasses.ScaleCannibalEatHunger(__instance, item, ref hungerAmount);
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix()
+            {
+                PlayerClasses.EndCannibalEatVomitBlock();
+            }
+        }
+
+        [HarmonyPatch(typeof(Vomiter), nameof(Vomiter.Vomit))]
+        internal static class CannibalBlockFleshVomitPatch
+        {
+            [HarmonyPrefix]
+            private static bool Prefix()
+            {
+                return !PlayerClasses.ShouldBlockCannibalVomit();
+            }
+        }
+
         [HarmonyPatch]
         internal static class CannibalYellowFleshPatch
         {
@@ -691,6 +722,143 @@ namespace DrinksAndDrugs
             private static void Postfix(Body __0)
             {
                 PlayerClasses.ApplyCannibalFleshEat(__0, "animalflesh");
+            }
+        }
+
+        [HarmonyPatch(typeof(Body), nameof(Body.UseItem))]
+        internal static class CannibalItemUsePatch
+        {
+            internal static Item CurrentItem;
+
+            [HarmonyPrefix]
+            private static void Prefix(Item item)
+            {
+                CurrentItem = item;
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix(Body __instance, Item item)
+            {
+                PlayerClasses.ApplyCannibalFleshEat(__instance, item != null ? item.id : null);
+                CurrentItem = null;
+            }
+        }
+
+        [HarmonyPatch(typeof(Body), nameof(Body.UseItemInHand))]
+        internal static class CannibalItemUseInHandPatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(Body __instance)
+            {
+                CannibalItemUsePatch.CurrentItem = __instance != null && __instance.HoldingItem(__instance.handSlot)
+                    ? __instance.GetItem(__instance.handSlot)
+                    : null;
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix(Body __instance)
+            {
+                Item item = CannibalItemUsePatch.CurrentItem;
+                PlayerClasses.ApplyCannibalFleshEat(__instance, item != null ? item.id : null);
+                CannibalItemUsePatch.CurrentItem = null;
+            }
+        }
+
+        [HarmonyPatch(typeof(TraderScript), nameof(TraderScript.MeetPlayer))]
+        internal static class CannibalTraderReputationPatch
+        {
+            [HarmonyPostfix]
+            private static void Postfix(TraderScript __instance)
+            {
+                PlayerClasses.ApplyCannibalTraderReputation(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(TraderScript), nameof(TraderScript.TryHug))]
+        internal static class CannibalTraderHugPatch
+        {
+            [HarmonyPrefix]
+            private static bool Prefix(TraderScript __instance)
+            {
+                return !PlayerClasses.TryHandleCannibalHug(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(CorpseScript), "OnWillRenderObject")]
+        internal static class CannibalCorpseMoodPatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(CorpseScript __instance, out float __state)
+            {
+                __state = 0f;
+                if (__instance == null || __instance.animalCorpse || __instance.didComment)
+                    return;
+
+                Body body = PlayerCamera.main != null ? PlayerCamera.main.body : null;
+                if (!PlayerClasses.IsCannibal(body))
+                    return;
+
+                if (Vector2.Distance(body.transform.position, __instance.transform.position) >= 7f)
+                    return;
+
+                __state = 3.5f * body.desensitizedMult;
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix(CorpseScript __instance, float __state)
+            {
+                if (__state <= 0f)
+                    return;
+
+                Body body = PlayerCamera.main != null ? PlayerCamera.main.body : null;
+                PlayerClasses.ApplyCannibalCorpseMood(body, __state);
+                PlayerClasses.SayCannibalCorpseLine(body);
+            }
+        }
+
+        [HarmonyPatch(typeof(CorpseScript), "Start")]
+        internal static class CannibalCorpseMineStartPatch
+        {
+            [HarmonyPostfix]
+            private static void Postfix(CorpseScript __instance)
+            {
+                if (PlayerClasses.IsCannibal(PlayerClasses.LocalBody()))
+                    PlayerClasses.AllowCorpseMining(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(CorpseScript), "OnDestroy")]
+        internal static class CannibalBreakCorpsePatch
+        {
+            [HarmonyPrefix]
+            private static void Prefix(CorpseScript __instance, out bool __state)
+            {
+                __state = false;
+                if (__instance == null || __instance.animalCorpse || !__instance.gameObject.scene.isLoaded)
+                    return;
+
+                BuildingEntity building = __instance.GetComponent<BuildingEntity>();
+                if (building == null || building.health > 0f)
+                    return;
+
+                Body body = PlayerCamera.main != null ? PlayerCamera.main.body : null;
+                if (!PlayerClasses.IsCannibal(body) || body.attackCooldown <= 0f)
+                    return;
+
+                if (Vector2.Distance(body.transform.position, __instance.transform.position) >= 10f)
+                    return;
+
+                __state = true;
+            }
+
+            [HarmonyPostfix]
+            private static void Postfix(bool __state)
+            {
+                if (!__state)
+                    return;
+
+                Body body = PlayerCamera.main != null ? PlayerCamera.main.body : null;
+                PlayerClasses.UndoCannibalBreakCorpsePenalty(body);
             }
         }
 

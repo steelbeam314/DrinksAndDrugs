@@ -356,8 +356,9 @@ namespace DrinksAndDrugs
 
         private void RegisterPeanutItems()
         {
-            Sprite peanutJarIcon = LoadAssetSprite("peanut_jar.png");
-            Sprite jarLiquidMask = ItemIcons.JarMaskMatching(peanutJarIcon);
+            Sprite peanutJarIcon = ItemIcons.CropToOpaque(LoadAssetSprite("peanut_jar.png"));
+            // Leave a 1px glass rim and the 2px lid empty so world walls stay visible.
+            Sprite jarLiquidMask = ItemIcons.JarMaskMatching(peanutJarIcon, insetX: 1, insetBottom: 1, insetTop: 2);
 
             ItemRegistry.Register(
                 "peanutjar",
@@ -391,7 +392,8 @@ namespace DrinksAndDrugs
                     rec = new Recognition(2),
                     DropPool = DropPool.FoodCrate | DropPool.AllTraders,
                     SpawnFrequency = 1,
-                    SpriteScaleDimensions = (14f, 14f, true)
+                    InventoryIconScale = 0.8f,
+                    SpriteScaleDimensions = (10f, 10f, true)
                 },
                 peanutJarIcon);
 

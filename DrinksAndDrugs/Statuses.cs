@@ -110,8 +110,12 @@ namespace DrinksAndDrugs
         public float[] LastLimbPain;
         public float ShakePainBackup;
         public float LastStamina;
+        public float StaminaBonusCooldown;
         public bool StaminaInitialized;
         public bool PainInitialized;
+        public float PendingVomitAt;
+        public float[] LastMuscleHealth;
+        public float[] LastSkinHealth;
     }
 
     [StatusOptions(Key = "modnamespace.peanutallergy", SaveEnabled = true)]
