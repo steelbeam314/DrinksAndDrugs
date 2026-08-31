@@ -60,17 +60,19 @@ namespace DrinksAndDrugs
             if (body == null)
                 return;
 
-            if (IsLocalBody(body))
+            if (ClassSelection.IsMultiplayerSession() && ClassNetwork.TryGetClassForBody(body, out string networked))
             {
-                if (!ClassSelection.IsMultiplayerEnabled())
-                    ClassSelection.RefreshSelectedClassFromRunSettings();
-
-                ApplyClass(body, Plugin.SelectedClassId);
+                ApplyClass(body, networked);
                 return;
             }
 
-            if (ClassNetwork.TryGetClassForBody(body, out string classId))
-                ApplyClass(body, classId);
+            if (!IsLocalBody(body))
+                return;
+
+            if (!ClassSelection.IsMultiplayerEnabled())
+                ClassSelection.RefreshSelectedClassFromRunSettings();
+
+            ApplyClass(body, Plugin.SelectedClassId);
         }
 
         public static void ApplyClass(Body body, string classId)
@@ -80,9 +82,9 @@ namespace DrinksAndDrugs
 
             classId = NormalizeClassId(classId);
             PlayerClassStatus status = body.GetStatus<PlayerClassStatus>();
-            status.ClassId = NormalizeClassId(status.ClassId);
+            string previous = NormalizeClassId(status.ClassId);
 
-            if (status.Assigned && status.ClassId == classId)
+            if (status.Assigned && previous == classId)
             {
                 if (!status.StatsApplied)
                 {
@@ -94,7 +96,7 @@ namespace DrinksAndDrugs
             }
 
             status.ClassId = classId;
-            if (!status.StatsApplied)
+            if (!status.StatsApplied || previous != classId)
             {
                 ApplyStartingStats(body, classId);
                 status.StatsApplied = true;

@@ -9,26 +9,27 @@ using UnityEngine;
 namespace DrinksAndDrugs
 {
     /// <summary>
-    /// Host simulation owns BodyStatus. Each client tells the host its chosen class
-    /// so the matching body can be assigned; otherwise only the host's class works.
+    /// In multiplayer the host assigns classes with <c>setclass class username</c>.
+    /// The host simulates every body, so that is the only assignment that actually applies.
     /// </summary>
     internal static class ClassNetwork
     {
-        private const string Channel = "drinksanddrugs.class";
-        private const float SendInterval = 1f;
+        private const string Channel = "drinksanddrugs.class.assign";
+        private const float ApplyInterval = 0.5f;
 
         private static readonly Dictionary<string, string> ClassByPlayerName =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<ulong, string> ClassBySteamId = new Dictionary<ulong, string>();
 
         private static bool _registered;
-        private static float _nextSendTime;
+        private static float _nextApplyTime;
         private static Type _netPlayerType;
         private static FieldInfo _localPlayerField;
         private static FieldInfo _allLivingPlayersField;
+        private static FieldInfo _allDeadPlayersField;
+        private static FieldInfo _clientIdToPlayerField;
         private static FieldInfo _playerNameField;
-        private static FieldInfo _steamIdField;
         private static FieldInfo _bodyField;
+        private static FieldInfo _isLocalField;
         private static MethodInfo _getNetPlayerFromBody;
 
         public static void Register()
@@ -37,81 +38,144 @@ namespace DrinksAndDrugs
                 return;
 
             _registered = true;
-            MultiplayerApi.RegisterServerHandler(Channel, HandleServer);
+            MultiplayerApi.RegisterClientHandler(Channel, HandleClientAssign);
         }
 
         public static void Tick()
         {
-            if (!ClassSelection.IsMultiplayerEnabled() || !MultiplayerApi.IsRunning)
+            if (!ClassSelection.IsMultiplayerSession() || ClassByPlayerName.Count == 0)
                 return;
 
-            if (Time.unscaledTime < _nextSendTime)
+            if (Time.unscaledTime < _nextApplyTime)
                 return;
 
-            _nextSendTime = Time.unscaledTime + SendInterval;
+            _nextApplyTime = Time.unscaledTime + ApplyInterval;
 
-            if (MultiplayerApi.IsClient && MultiplayerBridge.IsConnected)
-                SendLocalClass();
-
-            if (MultiplayerApi.IsServer || MultiplayerApi.IsHost)
+            if (IsHost())
                 ApplyToMatchingPlayers();
+        }
+
+        public static bool IsHost()
+        {
+            return MultiplayerApi.IsHost || MultiplayerApi.IsServer;
+        }
+
+        public static bool TryAssignByPlayerName(string classId, string playerName, out string error, out string matchedName, out bool appliedNow)
+        {
+            error = null;
+            matchedName = null;
+            appliedNow = false;
+            classId = PlayerClasses.NormalizeClassId(classId);
+
+            if (string.IsNullOrWhiteSpace(playerName))
+            {
+                error = "Missing username. Usage: setclass <class> <username>";
+                return false;
+            }
+
+            object netPlayer = FindPlayerByName(playerName, out string fail);
+            if (netPlayer == null)
+            {
+                error = fail;
+                return false;
+            }
+
+            matchedName = GetPlayerName(netPlayer);
+            if (string.IsNullOrEmpty(matchedName))
+                matchedName = playerName.Trim();
+
+            ClassByPlayerName[matchedName] = classId;
+
+            Body body = GetBody(netPlayer);
+            if (body != null)
+            {
+                PlayerClasses.ApplyClass(body, classId);
+                appliedNow = true;
+            }
+
+            if (IsLocalNetPlayer(netPlayer))
+                Plugin.SelectedClassId = classId;
+
+            NotifyClients(matchedName, classId);
+            return true;
         }
 
         public static bool TryGetClassForBody(Body body, out string classId)
         {
             classId = null;
             object netPlayer = GetNetPlayerFromBody(body);
-            return TryGetClassForNetPlayer(netPlayer, out classId);
+            if (netPlayer == null)
+                return false;
+
+            string playerName = GetPlayerName(netPlayer);
+            return !string.IsNullOrEmpty(playerName) && ClassByPlayerName.TryGetValue(playerName, out classId);
         }
 
-        private static void SendLocalClass()
+        public static string FormatPlayerList()
         {
-            object local = GetLocalNetPlayer();
-            var payload = new JObject
+            List<string> names = GetOnlinePlayerNames();
+            if (names.Count == 0)
+                return "No players found yet.";
+
+            var lines = new List<string>(names.Count);
+            for (int i = 0; i < names.Count; i++)
             {
-                ["classId"] = PlayerClasses.NormalizeClassId(Plugin.SelectedClassId)
-            };
+                string name = names[i];
+                string className = ClassByPlayerName.TryGetValue(name, out string classId)
+                    ? ClassSelection.DisplayName(classId)
+                    : "unset";
+                lines.Add(name + " (" + className + ")");
+            }
 
-            string playerName = GetPlayerName(local);
-            if (!string.IsNullOrEmpty(playerName))
-                payload["playerName"] = playerName;
-
-            ulong steamId = GetSteamId(local);
-            if (steamId != 0)
-                payload["steamId"] = steamId;
-
-            MultiplayerApi.SendToServer(Channel, payload, true);
+            return string.Join(", ", lines.ToArray());
         }
 
-        private static JToken HandleServer(JToken payload)
+        private static void NotifyClients(string playerName, string classId)
+        {
+            if (!MultiplayerApi.IsAvailable || !MultiplayerApi.IsServer)
+                return;
+
+            MultiplayerApi.Broadcast(
+                Channel,
+                new JObject
+                {
+                    ["playerName"] = playerName,
+                    ["classId"] = classId
+                },
+                false,
+                true);
+        }
+
+        private static void HandleClientAssign(JToken payload)
         {
             JObject obj = payload as JObject;
             if (obj == null)
-                return null;
+                return;
 
-            string classId = PlayerClasses.NormalizeClassId(obj.Value<string>("classId"));
             string playerName = obj.Value<string>("playerName");
-            ulong steamId = obj.Value<ulong?>("steamId") ?? 0UL;
+            string classId = PlayerClasses.NormalizeClassId(obj.Value<string>("classId"));
+            if (string.IsNullOrEmpty(playerName))
+                return;
 
-            if (!string.IsNullOrEmpty(playerName))
-                ClassByPlayerName[playerName] = classId;
+            ClassByPlayerName[playerName] = classId;
 
-            if (steamId != 0)
-                ClassBySteamId[steamId] = classId;
+            object local = GetLocalNetPlayer();
+            string localName = GetPlayerName(local);
+            if (!NamesMatch(localName, playerName))
+                return;
 
-            ApplyToMatchingPlayers();
-            return null;
+            Plugin.SelectedClassId = classId;
+            Body body = GetBody(local) ?? PlayerClasses.LocalBody();
+            if (body != null)
+                PlayerClasses.ApplyClass(body, classId);
         }
 
         private static void ApplyToMatchingPlayers()
         {
-            IEnumerable players = GetLivingPlayers();
-            if (players == null)
-                return;
-
-            foreach (object netPlayer in players)
+            foreach (object netPlayer in EnumeratePlayers())
             {
-                if (!TryGetClassForNetPlayer(netPlayer, out string classId))
+                string playerName = GetPlayerName(netPlayer);
+                if (string.IsNullOrEmpty(playerName) || !ClassByPlayerName.TryGetValue(playerName, out string classId))
                     continue;
 
                 Body body = GetBody(netPlayer);
@@ -120,18 +184,97 @@ namespace DrinksAndDrugs
             }
         }
 
-        private static bool TryGetClassForNetPlayer(object netPlayer, out string classId)
+        private static object FindPlayerByName(string rawName, out string error)
         {
-            classId = null;
-            if (netPlayer == null)
-                return false;
+            error = null;
+            string wanted = rawName.Trim();
+            var exact = new List<object>();
+            var partial = new List<object>();
 
-            ulong steamId = GetSteamId(netPlayer);
-            if (steamId != 0 && ClassBySteamId.TryGetValue(steamId, out classId))
-                return true;
+            foreach (object netPlayer in EnumeratePlayers())
+            {
+                string name = GetPlayerName(netPlayer);
+                if (string.IsNullOrEmpty(name))
+                    continue;
 
-            string playerName = GetPlayerName(netPlayer);
-            return !string.IsNullOrEmpty(playerName) && ClassByPlayerName.TryGetValue(playerName, out classId);
+                if (NamesMatch(name, wanted))
+                    exact.Add(netPlayer);
+                else if (name.IndexOf(wanted, StringComparison.OrdinalIgnoreCase) >= 0)
+                    partial.Add(netPlayer);
+            }
+
+            List<object> matches = exact.Count > 0 ? exact : partial;
+            if (matches.Count == 1)
+                return matches[0];
+
+            if (matches.Count > 1)
+            {
+                error = "Multiple players match '" + wanted + "'. Online: " + FormatPlayerList();
+                return null;
+            }
+
+            error = "No player named '" + wanted + "'. Online: " + FormatPlayerList();
+            return null;
+        }
+
+        private static List<string> GetOnlinePlayerNames()
+        {
+            var names = new List<string>();
+            foreach (object netPlayer in EnumeratePlayers())
+            {
+                string name = GetPlayerName(netPlayer);
+                if (string.IsNullOrEmpty(name) || ContainsName(names, name))
+                    continue;
+
+                names.Add(name);
+            }
+
+            return names;
+        }
+
+        private static bool ContainsName(List<string> names, string name)
+        {
+            for (int i = 0; i < names.Count; i++)
+            {
+                if (string.Equals(names[i], name, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static IEnumerable<object> EnumeratePlayers()
+        {
+            var seen = new HashSet<object>();
+            foreach (IEnumerable list in new IEnumerable[]
+                     {
+                         GetLivingPlayers(),
+                         GetDeadPlayers(),
+                         GetDictPlayers()
+                     })
+            {
+                if (list == null)
+                    continue;
+
+                foreach (object netPlayer in list)
+                {
+                    if (netPlayer == null || !seen.Add(netPlayer))
+                        continue;
+
+                    yield return netPlayer;
+                }
+            }
+
+            object local = GetLocalNetPlayer();
+            if (local != null && seen.Add(local))
+                yield return local;
+        }
+
+        private static bool NamesMatch(string a, string b)
+        {
+            return !string.IsNullOrEmpty(a)
+                && !string.IsNullOrEmpty(b)
+                && string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool TryResolveNetPlayer()
@@ -149,9 +292,12 @@ namespace DrinksAndDrugs
                 const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
                 _localPlayerField = type.GetField("LOCAL_PLAYER", flags);
                 _allLivingPlayersField = type.GetField("AllLivingPlayers", flags);
+                _allDeadPlayersField = type.GetField("AllDeadPlayers", flags);
+                _clientIdToPlayerField = type.GetField("ClientIdToPlayerDict", flags);
                 _playerNameField = type.GetField("playername", flags);
-                _steamIdField = type.GetField("steam_id", flags);
                 _bodyField = type.GetField("body", flags);
+                _isLocalField = type.GetField("is_local", flags)
+                    ?? type.GetField("<is_local>k__BackingField", flags);
                 _getNetPlayerFromBody = type.GetMethod(
                     "GetNetPlayerFromBody",
                     BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
@@ -169,6 +315,21 @@ namespace DrinksAndDrugs
             return TryResolveNetPlayer() ? _localPlayerField?.GetValue(null) : null;
         }
 
+        private static bool IsLocalNetPlayer(object netPlayer)
+        {
+            if (netPlayer == null)
+                return false;
+
+            if (_isLocalField != null)
+            {
+                object raw = _isLocalField.GetValue(netPlayer);
+                if (raw is bool isLocal)
+                    return isLocal;
+            }
+
+            return ReferenceEquals(netPlayer, GetLocalNetPlayer());
+        }
+
         private static object GetNetPlayerFromBody(Body body)
         {
             if (body == null || !TryResolveNetPlayer() || _getNetPlayerFromBody == null)
@@ -179,24 +340,29 @@ namespace DrinksAndDrugs
 
         private static IEnumerable GetLivingPlayers()
         {
+            return TryResolveNetPlayer() ? _allLivingPlayersField?.GetValue(null) as IEnumerable : null;
+        }
+
+        private static IEnumerable GetDeadPlayers()
+        {
+            return TryResolveNetPlayer() ? _allDeadPlayersField?.GetValue(null) as IEnumerable : null;
+        }
+
+        private static IEnumerable GetDictPlayers()
+        {
             if (!TryResolveNetPlayer())
                 return null;
 
-            return _allLivingPlayersField?.GetValue(null) as IEnumerable;
+            object dict = _clientIdToPlayerField?.GetValue(null);
+            if (dict is IDictionary map)
+                return map.Values;
+
+            return dict as IEnumerable;
         }
 
         private static string GetPlayerName(object netPlayer)
         {
             return netPlayer == null ? null : _playerNameField?.GetValue(netPlayer) as string;
-        }
-
-        private static ulong GetSteamId(object netPlayer)
-        {
-            if (netPlayer == null || _steamIdField == null)
-                return 0;
-
-            object raw = _steamIdField.GetValue(netPlayer);
-            return raw == null ? 0UL : Convert.ToUInt64(raw);
         }
 
         private static Body GetBody(object netPlayer)

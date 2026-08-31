@@ -29,6 +29,11 @@ namespace DrinksAndDrugs
             return MultiplayerApi.IsAvailable || MultiplayerApi.IsRunning;
         }
 
+        public static bool IsMultiplayerSession()
+        {
+            return IsMultiplayerEnabled() && (MultiplayerApi.IsRunning || MultiplayerApi.IsHost || MultiplayerApi.IsServer);
+        }
+
         public static bool IsRunStarted()
         {
             if (WorldGeneration.world != null)
@@ -103,12 +108,13 @@ namespace DrinksAndDrugs
 
             ConsoleCommandRegistry.Register(new Command(
                 SetClassCommandName,
-                "Set your character class before a run starts. In multiplayer this replaces the Class dropdown.",
+                "Set a character class. In multiplayer the host uses: setclass <class> <username>.",
                 HandleSetClassCommand,
                 autofill,
                 new (string, string)[]
                 {
-                    ("string name", "Class name: survivor, drugtester, failure, nameless, or cannibal")
+                    ("string class", "Class name: survivor, drugtester, failure, nameless, or cannibal"),
+                    ("string username", "In multiplayer, the player's username. Host only.")
                 }));
 
             _consoleCommandRegistered = true;
@@ -119,6 +125,12 @@ namespace DrinksAndDrugs
             ConsoleScript console = ConsoleScript.instance;
             if (console == null)
                 return;
+
+            if (IsMultiplayerSession())
+            {
+                HandleMultiplayerSetClass(console, args);
+                return;
+            }
 
             if (args == null || args.Length < 2 || string.IsNullOrWhiteSpace(args[1]))
             {
@@ -138,6 +150,49 @@ namespace DrinksAndDrugs
             }
 
             console.LogToConsole("Class set to " + DisplayName(Plugin.SelectedClassId) + ". This takes effect when the run starts.");
+        }
+
+        private static void HandleMultiplayerSetClass(ConsoleScript console, string[] args)
+        {
+            if (!ClassNetwork.IsHost())
+            {
+                console.LogToConsole("Only the host can set classes. Ask them to type: setclass <class> <username>");
+                return;
+            }
+
+            if (args == null || args.Length < 2 || string.IsNullOrWhiteSpace(args[1]))
+            {
+                console.LogToConsole("Usage: setclass <survivor|drugtester|failure|nameless|cannibal> <username>");
+                console.LogToConsole("Players: " + ClassNetwork.FormatPlayerList());
+                return;
+            }
+
+            string classId = ResolveClassId(args[1]);
+            if (classId == null)
+            {
+                console.LogToConsole("Unknown class. Use: survivor, drugtester, failure, nameless, cannibal");
+                return;
+            }
+
+            if (args.Length < 3 || string.IsNullOrWhiteSpace(args[2]))
+            {
+                console.LogToConsole("Missing username. Usage: setclass " + args[1] + " <username>");
+                console.LogToConsole("Players: " + ClassNetwork.FormatPlayerList());
+                return;
+            }
+
+            string username = args[2];
+            for (int i = 3; i < args.Length; i++)
+                username += " " + args[i];
+
+            if (!ClassNetwork.TryAssignByPlayerName(classId, username, out string error, out string matchedName, out bool appliedNow))
+            {
+                console.LogToConsole(error);
+                return;
+            }
+
+            string applied = appliedNow ? "applied" : "stored until they spawn";
+            console.LogToConsole("Set " + matchedName + " to " + DisplayName(classId) + " (" + applied + ").");
         }
 
         public static bool TrySetClassFromName(string raw, out string error)
