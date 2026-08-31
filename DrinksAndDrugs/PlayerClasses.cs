@@ -60,18 +60,18 @@ namespace DrinksAndDrugs
             if (body == null)
                 return;
 
-            if (ClassSelection.IsMultiplayerSession() && ClassNetwork.TryGetClassForBody(body, out string networked))
+            if (ClassSelection.IsMultiplayerSession())
             {
-                ApplyClass(body, networked);
+                if (ClassNetwork.TryGetClassForBody(body, out string networked))
+                    ApplyClass(body, networked);
+
                 return;
             }
 
             if (!IsLocalBody(body))
                 return;
 
-            if (!ClassSelection.IsMultiplayerEnabled())
-                ClassSelection.RefreshSelectedClassFromRunSettings();
-
+            ClassSelection.RefreshSelectedClassFromRunSettings();
             ApplyClass(body, Plugin.SelectedClassId);
         }
 
