@@ -36,14 +36,11 @@ namespace DrinksAndDrugs
         private static FieldInfo _bodyField;
         private static FieldInfo _namePrefixField;
         private static FieldInfo _nametagPrefixField;
-        private static FieldInfo _netBodyAllField;
         private static PropertyInfo _isLocalProp;
         private static PropertyInfo _clientIdProp;
         private static PropertyInfo _playerBodyProp;
         private static PropertyInfo _netBodyBodyProp;
         private static PropertyInfo _netBodyNameProp;
-        private static PropertyInfo _netBodyIsPlayerProp;
-        private static PropertyInfo _netBodyPlayerProp;
         private static MethodInfo _getNetPlayerFromBody;
         private static MethodInfo _getBodyFromClientId;
 
@@ -68,7 +65,15 @@ namespace DrinksAndDrugs
 
             if (IsHost())
             {
-                ApplyToMatchingPlayers();
+                try
+                {
+                    ApplyToMatchingPlayers();
+                }
+                catch (Exception ex)
+                {
+                    Plugin.Logger?.LogWarning("ClassNetwork apply failed: " + ex);
+                }
+
                 return;
             }
 
@@ -150,24 +155,35 @@ namespace DrinksAndDrugs
 
         public static string FormatPlayerList()
         {
-            var lines = new List<string>();
-            foreach (object netPlayer in EnumeratePlayers())
+            try
             {
-                string name = GetBestPlayerName(netPlayer);
-                if (string.IsNullOrEmpty(name) || ContainsName(lines, name))
-                    continue;
+                var lines = new List<string>();
+                foreach (object netPlayer in EnumeratePlayers())
+                {
+                    if (IsDestroyed(netPlayer))
+                        continue;
 
-                string className = "unset";
-                ushort clientId = GetClientId(netPlayer);
-                if (clientId != 0 && ClassByClientId.TryGetValue(clientId, out string byId))
-                    className = ClassSelection.DisplayName(byId);
-                else if (TryGetClassForNames(GetNameCandidates(netPlayer), out string byName))
-                    className = ClassSelection.DisplayName(byName);
+                    string name = GetBestPlayerName(netPlayer);
+                    if (string.IsNullOrEmpty(name) || ContainsName(lines, name))
+                        continue;
 
-                lines.Add(name + " (" + className + ")");
+                    string className = "unset";
+                    ushort clientId = GetClientId(netPlayer);
+                    if (clientId != 0 && ClassByClientId.TryGetValue(clientId, out string byId))
+                        className = ClassSelection.DisplayName(byId);
+                    else if (TryGetClassForNames(GetNameCandidates(netPlayer), out string byName))
+                        className = ClassSelection.DisplayName(byName);
+
+                    lines.Add(name + " (" + className + ")");
+                }
+
+                return lines.Count == 0 ? "No players found yet." : string.Join(", ", lines.ToArray());
             }
-
-            return lines.Count == 0 ? "No players found yet." : string.Join(", ", lines.ToArray());
+            catch (Exception ex)
+            {
+                Plugin.Logger?.LogWarning("ClassNetwork player list failed: " + ex);
+                return "(could not list players: " + ex.GetType().Name + ")";
+            }
         }
 
         private static void RememberAssignment(object netPlayer, string classId)
@@ -185,22 +201,29 @@ namespace DrinksAndDrugs
             if (!MultiplayerApi.IsAvailable || !MultiplayerApi.IsServer || IsLocalNetPlayer(netPlayer))
                 return;
 
-            var payload = new JObject
+            try
             {
-                ["classId"] = classId,
-                ["playerName"] = GetBestPlayerName(netPlayer)
-            };
+                var payload = new JObject
+                {
+                    ["classId"] = classId,
+                    ["playerName"] = GetBestPlayerName(netPlayer)
+                };
 
-            ushort clientId = GetClientId(netPlayer);
-            if (clientId != 0)
-            {
-                payload["forLocal"] = true;
-                if (MultiplayerApi.SendToClient(clientId, Channel, payload, true))
-                    return;
+                ushort clientId = GetClientId(netPlayer);
+                if (clientId != 0)
+                {
+                    payload["forLocal"] = true;
+                    if (MultiplayerApi.SendToClient(clientId, Channel, payload, true))
+                        return;
+                }
+
+                payload["forLocal"] = false;
+                MultiplayerApi.Broadcast(Channel, payload, false, true);
             }
-
-            payload["forLocal"] = false;
-            MultiplayerApi.Broadcast(Channel, payload, false, true);
+            catch (Exception ex)
+            {
+                Plugin.Logger?.LogWarning("ClassNetwork notify failed: " + ex);
+            }
         }
 
         private static void HandleClientAssign(JToken payload)
@@ -345,11 +368,8 @@ namespace DrinksAndDrugs
                     yield return netPlayer;
             }
 
-            foreach (object netPlayer in YieldPlayers(GetPlayersFromNetBodies(), seen))
-                yield return netPlayer;
-
             object local = GetLocalNetPlayer();
-            if (local != null && seen.Add(local))
+            if (local != null && !IsDestroyed(local) && seen.Add(local))
                 yield return local;
         }
 
@@ -358,42 +378,52 @@ namespace DrinksAndDrugs
             if (list == null)
                 yield break;
 
-            foreach (object item in list)
+            object[] snapshot;
+            try
             {
-                object netPlayer = AsNetPlayer(item);
-                if (netPlayer == null || !seen.Add(netPlayer))
+                var copy = new List<object>();
+                foreach (object item in list)
+                    copy.Add(item);
+                snapshot = copy.ToArray();
+            }
+            catch (Exception)
+            {
+                yield break;
+            }
+
+            for (int i = 0; i < snapshot.Length; i++)
+            {
+                object netPlayer = AsNetPlayer(snapshot[i]);
+                if (netPlayer == null || IsDestroyed(netPlayer) || !seen.Add(netPlayer))
                     continue;
 
                 yield return netPlayer;
             }
         }
 
-        private static IEnumerable GetPlayersFromNetBodies()
-        {
-            if (!TryResolveNetPlayer())
-                return null;
-
-            return _netBodyAllField?.GetValue(null) as IEnumerable;
-        }
-
         private static object AsNetPlayer(object item)
         {
-            if (item == null || _netPlayerType == null)
+            if (item == null || _netPlayerType == null || IsDestroyed(item))
                 return null;
 
-            if (_netPlayerType.IsInstanceOfType(item))
-                return item;
-
-            if (_netBodyType != null && _netBodyType.IsInstanceOfType(item))
+            try
             {
-                bool isPlayer = _netBodyIsPlayerProp != null && _netBodyIsPlayerProp.GetValue(item, null) is bool flag && flag;
-                if (!isPlayer)
-                    return null;
-
-                return _netBodyPlayerProp?.GetValue(item, null);
+                if (_netPlayerType.IsInstanceOfType(item))
+                    return item;
+            }
+            catch (Exception)
+            {
             }
 
             return null;
+        }
+
+        private static bool IsDestroyed(object obj)
+        {
+            if (obj == null)
+                return true;
+
+            return obj is UnityEngine.Object unityObj && unityObj == null;
         }
 
         private static List<string> GetNameCandidates(object netPlayer)
@@ -405,8 +435,14 @@ namespace DrinksAndDrugs
             object netBody = GetNetBody(netPlayer);
             if (netBody != null)
             {
-                AddName(names, _netBodyNameProp?.GetValue(netBody, null) as string);
-                AddName(names, StripPrefixes(_netBodyNameProp?.GetValue(netBody, null) as string));
+                try
+                {
+                    AddName(names, _netBodyNameProp?.GetValue(netBody, null) as string);
+                    AddName(names, StripPrefixes(_netBodyNameProp?.GetValue(netBody, null) as string));
+                }
+                catch (Exception)
+                {
+                }
             }
 
             return names;
@@ -438,9 +474,35 @@ namespace DrinksAndDrugs
             return names.Count > 0 ? names[0] : null;
         }
 
+        private static object GetNetBody(object netPlayer)
+        {
+            if (netPlayer == null || IsDestroyed(netPlayer) || _playerBodyProp == null)
+                return null;
+
+            try
+            {
+                object netBody = _playerBodyProp.GetValue(netPlayer, null);
+                return IsDestroyed(netBody) ? null : netBody;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         private static string GetPlayerName(object netPlayer)
         {
-            return netPlayer == null ? null : _playerNameField?.GetValue(netPlayer) as string;
+            if (netPlayer == null || IsDestroyed(netPlayer) || _playerNameField == null)
+                return null;
+
+            try
+            {
+                return _playerNameField.GetValue(netPlayer) as string;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         private static string StripPrefixes(string name)
@@ -501,12 +563,17 @@ namespace DrinksAndDrugs
             if (netBody != null && _netBodyBodyProp?.GetValue(netBody, null) is Body fromNetBody && fromNetBody != null)
                 return fromNetBody;
 
-            return _bodyField?.GetValue(netPlayer) as Body;
-        }
+            try
+            {
+                if (IsDestroyed(netPlayer) || _bodyField == null)
+                    return null;
 
-        private static object GetNetBody(object netPlayer)
-        {
-            return netPlayer == null ? null : _playerBodyProp?.GetValue(netPlayer, null);
+                return _bodyField.GetValue(netPlayer) as Body;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         private static ushort GetClientId(object netPlayer)
@@ -537,49 +604,57 @@ namespace DrinksAndDrugs
             if (_netPlayerType != null)
                 return true;
 
-            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            try
             {
-                Type type = assembly.GetType("KrokoshaCasualtiesMP.NetPlayer", false);
-                if (type == null)
-                    continue;
-
-                _netPlayerType = type;
-                _netBodyType = assembly.GetType("KrokoshaCasualtiesMP.NetBody", false);
-                const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
-                _localPlayerField = type.GetField("LOCAL_PLAYER", flags);
-                _allLivingPlayersField = type.GetField("AllLivingPlayers", flags);
-                _allDeadPlayersField = type.GetField("AllDeadPlayers", flags);
-                _clientIdToPlayerField = type.GetField("ClientIdToPlayerDict", flags);
-                _bodyToPlayerField = type.GetField("BodyToPlayerDict", flags);
-                _playerNameField = type.GetField("playername", flags);
-                _bodyField = type.GetField("body", flags);
-                _namePrefixField = type.GetField("plrnameprefix", flags);
-                _nametagPrefixField = type.GetField("plrnametagprefix", flags);
-                _isLocalProp = type.GetProperty("is_local", flags);
-                _clientIdProp = type.GetProperty("clientId", flags);
-                _playerBodyProp = type.GetProperty("playerbody", flags);
-                _getNetPlayerFromBody = type.GetMethod(
-                    "GetNetPlayerFromBody",
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
-                    null,
-                    new[] { typeof(Body) },
-                    null);
-                _getBodyFromClientId = type.GetMethod(
-                    "GetBodyFromClientId",
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-
-                if (_netBodyType != null)
+                foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    _netBodyAllField = _netBodyType.GetField("all_instances", flags);
-                    _netBodyBodyProp = _netBodyType.GetProperty("body", flags);
-                    _netBodyNameProp = _netBodyType.GetProperty("playername", flags)
-                        ?? _netBodyType.GetProperty("bodyname", flags);
-                    _netBodyIsPlayerProp = _netBodyType.GetProperty("is_player", flags);
-                    _netBodyPlayerProp = _netBodyType.GetProperty("player", flags)
-                        ?? _netBodyType.GetProperty("plr", flags);
-                }
+                    Type type = assembly.GetType("KrokoshaCasualtiesMP.NetPlayer", false);
+                    if (type == null)
+                        continue;
 
-                return true;
+                    _netPlayerType = type;
+                    _netBodyType = assembly.GetType("KrokoshaCasualtiesMP.NetBody", false);
+                    const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+                    _localPlayerField = type.GetField("LOCAL_PLAYER", flags);
+                    _allLivingPlayersField = type.GetField("AllLivingPlayers", flags);
+                    _allDeadPlayersField = type.GetField("AllDeadPlayers", flags);
+                    _clientIdToPlayerField = type.GetField("ClientIdToPlayerDict", flags);
+                    _bodyToPlayerField = type.GetField("BodyToPlayerDict", flags);
+                    _playerNameField = type.GetField("playername", flags);
+                    _bodyField = type.GetField("body", flags);
+                    _namePrefixField = type.GetField("plrnameprefix", flags);
+                    _nametagPrefixField = type.GetField("plrnametagprefix", flags);
+                    _isLocalProp = type.GetProperty("is_local", flags);
+                    _clientIdProp = type.GetProperty("clientId", flags);
+                    _playerBodyProp = type.GetProperty("playerbody", flags);
+                    _getNetPlayerFromBody = type.GetMethod(
+                        "GetNetPlayerFromBody",
+                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+                        null,
+                        new[] { typeof(Body) },
+                        null);
+                    foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
+                    {
+                        if (method.Name != "GetBodyFromClientId" || method.GetParameters().Length != 1)
+                            continue;
+
+                        _getBodyFromClientId = method;
+                        break;
+                    }
+
+                    if (_netBodyType != null)
+                    {
+                        _netBodyBodyProp = _netBodyType.GetProperty("body", flags);
+                        _netBodyNameProp = _netBodyType.GetProperty("playername", flags)
+                            ?? _netBodyType.GetProperty("bodyname", flags);
+                    }
+
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Logger?.LogWarning("ClassNetwork could not resolve NetPlayer: " + ex);
             }
 
             return false;
@@ -587,18 +662,15 @@ namespace DrinksAndDrugs
 
         private static object GetLocalNetPlayer()
         {
-            return TryResolveNetPlayer() ? _localPlayerField?.GetValue(null) : null;
-        }
-
-        private static bool IsLocalNetPlayer(object netPlayer)
-        {
-            if (netPlayer == null)
-                return false;
-
-            if (_isLocalProp != null && _isLocalProp.GetValue(netPlayer, null) is bool isLocal)
-                return isLocal;
-
-            return ReferenceEquals(netPlayer, GetLocalNetPlayer());
+            try
+            {
+                object local = TryResolveNetPlayer() ? _localPlayerField?.GetValue(null) : null;
+                return IsDestroyed(local) ? null : local;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         private static object GetNetPlayerFromBody(Body body)
@@ -606,7 +678,31 @@ namespace DrinksAndDrugs
             if (body == null || !TryResolveNetPlayer() || _getNetPlayerFromBody == null)
                 return null;
 
-            return _getNetPlayerFromBody.Invoke(null, new object[] { body });
+            try
+            {
+                return _getNetPlayerFromBody.Invoke(null, new object[] { body });
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static bool IsLocalNetPlayer(object netPlayer)
+        {
+            if (netPlayer == null || IsDestroyed(netPlayer))
+                return false;
+
+            try
+            {
+                if (_isLocalProp != null && _isLocalProp.GetValue(netPlayer, null) is bool isLocal)
+                    return isLocal;
+            }
+            catch (Exception)
+            {
+            }
+
+            return ReferenceEquals(netPlayer, GetLocalNetPlayer());
         }
 
         private static IEnumerable GetLivingPlayers()

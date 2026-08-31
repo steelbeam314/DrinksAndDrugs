@@ -123,6 +123,25 @@ namespace DrinksAndDrugs
         public static void HandleSetClassCommand(string[] args)
         {
             ConsoleScript console = ConsoleScript.instance;
+            try
+            {
+                HandleSetClassCommandInner(args);
+            }
+            catch (Exception ex)
+            {
+                Exception inner = ex;
+                while (inner.InnerException != null)
+                    inner = inner.InnerException;
+
+                string message = "setclass failed: " + inner.GetType().Name + ": " + inner.Message;
+                console?.LogToConsole(message);
+                Plugin.Logger?.LogError(ex.ToString());
+            }
+        }
+
+        private static void HandleSetClassCommandInner(string[] args)
+        {
+            ConsoleScript console = ConsoleScript.instance;
             if (console == null)
                 return;
 
