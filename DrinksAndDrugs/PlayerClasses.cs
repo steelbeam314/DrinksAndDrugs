@@ -82,29 +82,23 @@ namespace DrinksAndDrugs
 
             classId = NormalizeClassId(classId);
             PlayerClassStatus status = body.GetStatus<PlayerClassStatus>();
-            string previous = NormalizeClassId(status.ClassId);
-
-            if (status.Assigned && previous == classId)
-            {
-                if (!status.StatsApplied)
-                {
-                    ApplyStartingStats(body, classId);
-                    status.StatsApplied = true;
-                }
-
-                return;
-            }
-
             status.ClassId = classId;
-            if (!status.StatsApplied || previous != classId)
+            status.Assigned = true;
+
+            if (ShouldSimulateClassEffects() && status.StatsClassId != classId)
             {
                 ApplyStartingStats(body, classId);
+                status.StatsClassId = classId;
                 status.StatsApplied = true;
             }
 
-            status.Assigned = true;
             if (classId == Plugin.CannibalClassId)
                 EnableCorpseMining();
+        }
+
+        public static bool ShouldSimulateClassEffects()
+        {
+            return !ClassSelection.IsMultiplayerSession() || ClassNetwork.IsHost();
         }
 
         public static string NormalizeClassId(string classId)
@@ -185,12 +179,15 @@ namespace DrinksAndDrugs
 
         public static float ScaleOverdoseThreshold(Body body, float vanilla)
         {
+            if (!ShouldSimulateClassEffects())
+                return vanilla;
+
             return IsDrugTester(body) ? vanilla * 2f : vanilla;
         }
 
         public static void TickFailureEffects(Body body)
         {
-            if (body == null)
+            if (body == null || !ShouldSimulateClassEffects())
                 return;
 
             PlayerClassStatus status = body.GetStatus<PlayerClassStatus>();
@@ -254,7 +251,7 @@ namespace DrinksAndDrugs
 
         public static void ApplyNamelessSimulation(Body body)
         {
-            if (body == null || !IsNameless(body))
+            if (body == null || !ShouldSimulateClassEffects() || !IsNameless(body))
                 return;
 
             NamelessStatus status = body.GetStatus<NamelessStatus>();
@@ -264,7 +261,7 @@ namespace DrinksAndDrugs
 
         public static void ApplyCannibalSimulation(Body body)
         {
-            if (body == null || !IsCannibal(body))
+            if (body == null || !ShouldSimulateClassEffects() || !IsCannibal(body))
                 return;
 
             CannibalStatus status = body.GetStatus<CannibalStatus>();
@@ -276,6 +273,9 @@ namespace DrinksAndDrugs
 
         public static float ScaleHungerRate(Body body, float vanilla)
         {
+            if (!ShouldSimulateClassEffects())
+                return vanilla;
+
             return IsCannibal(body) ? vanilla * CannibalHungerRateScale : vanilla;
         }
 
@@ -289,7 +289,7 @@ namespace DrinksAndDrugs
             _fleshEatApplied = false;
             _blockFleshVomit = false;
             _fleshEatSickness = -1f;
-            if (body == null || !IsCannibal(body))
+            if (body == null || !ShouldSimulateClassEffects() || !IsCannibal(body))
                 return;
 
             _fleshEatSickness = body.sicknessAmount;
@@ -309,7 +309,7 @@ namespace DrinksAndDrugs
 
         public static void ApplyCannibalFleshEat(Body body, string itemId)
         {
-            if (body == null || !IsCannibal(body) || string.IsNullOrEmpty(itemId))
+            if (body == null || !ShouldSimulateClassEffects() || !IsCannibal(body) || string.IsNullOrEmpty(itemId))
                 return;
 
             if (itemId == "blobflesh")
@@ -351,7 +351,7 @@ namespace DrinksAndDrugs
 
         public static void ScaleCannibalEatHunger(Body body, Item item, ref float hungerAmount)
         {
-            if (body == null || item == null || !IsCannibal(body))
+            if (body == null || item == null || !ShouldSimulateClassEffects() || !IsCannibal(body))
                 return;
 
             if (ItemHasQuality(item, "meat"))
@@ -366,7 +366,7 @@ namespace DrinksAndDrugs
 
         public static void ApplyCannibalTraderReputation(TraderScript trader)
         {
-            if (trader == null || !IsCannibal(LocalBody()))
+            if (trader == null || !ShouldSimulateClassEffects() || !IsCannibal(LocalBody()))
                 return;
 
             if (trader.character == 1)
@@ -420,7 +420,7 @@ namespace DrinksAndDrugs
 
         public static void ApplyCannibalCorpseMood(Body body, float sadnessRemoved)
         {
-            if (body == null || !IsCannibal(body))
+            if (body == null || !ShouldSimulateClassEffects() || !IsCannibal(body))
                 return;
 
             body.happiness += sadnessRemoved + CannibalCorpseHappiness;

@@ -90,6 +90,9 @@ namespace DrinksAndDrugs
         // Starting STR/RES/INT modifiers applied once per body.
         public bool StatsApplied;
 
+        // Class whose starting stats were already applied, so MP sync cannot stack them.
+        public string StatsClassId;
+
         // Happiness currently added by Failure pickle-jar mood.
         public float PickleMoodApplied;
     }
